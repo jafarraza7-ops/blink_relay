@@ -15,7 +15,7 @@ import { PriorityBadge } from '@/components/request/PriorityBadge'
 import { TypeBadge } from '@/components/request/TypeBadge'
 import { MessageThread } from '@/components/request/MessageThread'
 import { FileAttachment } from '@/components/request/FileAttachment'
-import { useRequest, useApproveRequest, useUpdateStatus, useSendClarification } from '@/hooks/useRequests'
+import { useRequest, useApproveRequest, useRejectRequest, useUpdateStatus, useSendClarification } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDateTime } from '@/lib/utils'
@@ -38,6 +38,7 @@ export function ReviewPage() {
   const { toast } = useToast()
 
   const approve = useApproveRequest(id ?? '')
+  const reject = useRejectRequest(id ?? '')
   const updateStatus = useUpdateStatus(id ?? '')
 
   const [newStatus, setNewStatus] = useState<RequestStatus | ''>('')
@@ -70,16 +71,19 @@ export function ReviewPage() {
 
   const handleStatusChange = () => {
     if (!newStatus) return
-    const extra = isRejecting && rejectReason ? { reason: rejectReason, comment: rejectComment || undefined } : {}
-    updateStatus.mutate({ status: newStatus, ...extra }, {
-      onSuccess: () => {
-        toast({ title: `Status updated to ${STATUS_LABELS[newStatus]}` })
-        setNewStatus('')
-        setRejectReason('')
-        setRejectComment('')
-      },
-      onError: (err) => toast({ title: 'Failed to update status', description: err.message, variant: 'destructive' }),
-    })
+    const onSuccess = () => {
+      toast({ title: `Status updated to ${STATUS_LABELS[newStatus]}` })
+      setNewStatus('')
+      setRejectReason('')
+      setRejectComment('')
+    }
+    const onError = (err: Error) => toast({ title: 'Failed to update status', description: err.message, variant: 'destructive' })
+
+    if (isRejecting) {
+      reject.mutate({ reason: rejectReason, comment: rejectComment || undefined }, { onSuccess, onError })
+    } else {
+      updateStatus.mutate({ status: newStatus }, { onSuccess, onError })
+    }
   }
 
   const handleClarify = () => {
@@ -217,8 +221,8 @@ export function ReviewPage() {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleStatusChange} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Confirm Rejection
+                        <AlertDialogAction onClick={handleStatusChange} disabled={reject.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          {reject.isPending ? 'Rejecting…' : 'Confirm Rejection'}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
