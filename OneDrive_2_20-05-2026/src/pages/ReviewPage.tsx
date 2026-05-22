@@ -5,6 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { StatusBadge } from '@/components/request/StatusBadge'
 import { PodBadge } from '@/components/request/PodBadge'
 import { PriorityBadge } from '@/components/request/PriorityBadge'
@@ -18,6 +22,15 @@ import { formatDateTime } from '@/lib/utils'
 import { ALLOWED_TRANSITIONS, STATUS_LABELS, REGION_LABELS } from '@/lib/constants'
 import type { RequestStatus } from '@/lib/types'
 
+const REJECTION_REASONS = [
+  'Out of scope',
+  'Duplicate request',
+  'Insufficient information',
+  'Not prioritised this cycle',
+  'Alternative solution exists',
+  'Other',
+]
+
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
   const { data: req, isLoading, isError } = useRequest(id ?? '')
@@ -28,7 +41,11 @@ export function ReviewPage() {
   const updateStatus = useUpdateStatus(id ?? '')
 
   const [newStatus, setNewStatus] = useState<RequestStatus | ''>('')
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejectComment, setRejectComment] = useState('')
   const [clarifyText, setClarifyText] = useState('')
+
+  const isRejecting = newStatus === 'Rejected'
 
   const clarify = useSendClarification(id ?? '')
 
@@ -53,8 +70,14 @@ export function ReviewPage() {
 
   const handleStatusChange = () => {
     if (!newStatus) return
-    updateStatus.mutate({ status: newStatus }, {
-      onSuccess: () => { toast({ title: `Status updated to ${STATUS_LABELS[newStatus]}` }); setNewStatus('') },
+    const extra = isRejecting && rejectReason ? { reason: rejectReason, comment: rejectComment || undefined } : {}
+    updateStatus.mutate({ status: newStatus, ...extra }, {
+      onSuccess: () => {
+        toast({ title: `Status updated to ${STATUS_LABELS[newStatus]}` })
+        setNewStatus('')
+        setRejectReason('')
+        setRejectComment('')
+      },
       onError: (err) => toast({ title: 'Failed to update status', description: err.message, variant: 'destructive' }),
     })
   }
@@ -151,7 +174,7 @@ export function ReviewPage() {
             <Card>
               <CardHeader><CardTitle className="text-base">Update Status</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <Select value={newStatus} onValueChange={(v) => setNewStatus(v as RequestStatus)}>
+                <Select value={newStatus} onValueChange={(v) => { setNewStatus(v as RequestStatus); setRejectReason(''); setRejectComment('') }}>
                   <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                   <SelectContent>
                     {ALLOWED_TRANSITIONS[req.status].map((s) => (
@@ -159,9 +182,52 @@ export function ReviewPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" className="w-full" onClick={handleStatusChange} disabled={!newStatus || updateStatus.isPending}>
-                  {updateStatus.isPending ? 'Updating…' : 'Update Status'}
-                </Button>
+
+                {isRejecting && (
+                  <>
+                    <Select value={rejectReason} onValueChange={setRejectReason}>
+                      <SelectTrigger><SelectValue placeholder="Select rejection reason" /></SelectTrigger>
+                      <SelectContent>
+                        {REJECTION_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Textarea
+                      placeholder="Optional comment for requestor…"
+                      value={rejectComment}
+                      onChange={(e) => setRejectComment(e.target.value)}
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </>
+                )}
+
+                {isRejecting ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" className="w-full" disabled={!rejectReason}>
+                        Reject Request
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reject this request?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Reason: <strong>{rejectReason}</strong>. The requestor will be notified by email.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleStatusChange} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Confirm Rejection
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Button variant="outline" className="w-full" onClick={handleStatusChange} disabled={!newStatus || updateStatus.isPending}>
+                    {updateStatus.isPending ? 'Updating…' : 'Update Status'}
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
