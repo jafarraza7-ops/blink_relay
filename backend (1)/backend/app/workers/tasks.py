@@ -54,6 +54,7 @@ def route_request_to_pod(self, request_id: str) -> dict:
 
             if result.confidence >= 0.65 and result.pod != Pod.UNKNOWN:
                 req.pod = result.pod
+                await db.commit()
                 logger.info(
                     "Auto-routed request %s → %s (confidence %.2f, keywords: %s)",
                     request_id,

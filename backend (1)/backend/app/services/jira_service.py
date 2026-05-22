@@ -192,6 +192,32 @@ class JiraService:
             logger.warning("Failed to look up Jira account for %s", email)
         return None
 
+    def _build_issue_fields(
+        self,
+        project_key: str,
+        title: str,
+        description_adf: dict,
+        issue_type: str,
+        priority: str = "Medium",
+        labels: list[str] | None = None,
+        component: str | None = None,
+        assignee_account_id: str | None = None,
+    ) -> dict:
+        fields: dict = {
+            "project": {"key": project_key},
+            "summary": title,
+            "description": description_adf,
+            "issuetype": {"name": issue_type},
+            "priority": {"name": priority},
+            "labels": (labels or []) + ["blink-relay"],
+        }
+        if component:
+            fields["components"] = [{"name": component}]
+        assignee = ({"accountId": assignee_account_id} if assignee_account_id else self._assignee_field())
+        if assignee:
+            fields["assignee"] = assignee
+        return fields
+
     async def create_epic(
         self,
         project_key: str,
@@ -202,19 +228,9 @@ class JiraService:
         component: str | None = None,
         assignee_account_id: str | None = None,
     ) -> dict:
-        fields: dict = {
-            "project": {"key": project_key},
-            "summary": title,
-            "description": description_adf,
-            "issuetype": {"name": "Story"},
-            "priority": {"name": priority},
-            "labels": (labels or []) + ["blink-relay"],
-        }
-        if component:
-            fields["components"] = [{"name": component}]
-        assignee = ({"accountId": assignee_account_id} if assignee_account_id else self._assignee_field())
-        if assignee:
-            fields["assignee"] = assignee
+        fields = self._build_issue_fields(
+            project_key, title, description_adf, "Story", priority, labels, component, assignee_account_id
+        )
         return await self._post_issue({"fields": fields})
 
     async def create_bug_ticket(
@@ -227,19 +243,9 @@ class JiraService:
         component: str | None = None,
         assignee_account_id: str | None = None,
     ) -> dict:
-        fields: dict = {
-            "project": {"key": project_key},
-            "summary": title,
-            "description": description_adf,
-            "issuetype": {"name": "Bug"},
-            "priority": {"name": priority},
-            "labels": (labels or []) + ["blink-relay"],
-        }
-        if component:
-            fields["components"] = [{"name": component}]
-        assignee = ({"accountId": assignee_account_id} if assignee_account_id else self._assignee_field())
-        if assignee:
-            fields["assignee"] = assignee
+        fields = self._build_issue_fields(
+            project_key, title, description_adf, "Bug", priority, labels, component, assignee_account_id
+        )
         return await self._post_issue({"fields": fields})
 
     async def create_ticket(
@@ -272,9 +278,16 @@ class JiraService:
             steps_to_reproduce=steps_to_reproduce,
             additional_context=additional_context,
         )
+        _priority_map = {
+            "CRITICAL": "P1 - CRITICAL",
+            "HIGH": "P2 - HIGH",
+            "MEDIUM": "P2 - MEDIUM",
+            "LOW": "P3 - LOW",
+        }
+        jira_priority = _priority_map.get(priority.upper(), "P2 - MEDIUM")
         if request_type == "Defect":
-            return await self.create_bug_ticket(project_key, title, adf, "P2 - MEDIUM", labels, component, assignee_account_id)
-        return await self.create_epic(project_key, title, adf, "P2 - MEDIUM", labels, component, assignee_account_id)
+            return await self.create_bug_ticket(project_key, title, adf, jira_priority, labels, component, assignee_account_id)
+        return await self.create_epic(project_key, title, adf, jira_priority, labels, component, assignee_account_id)
 
     @retry(
         retry=retry_if_exception(_is_retryable),

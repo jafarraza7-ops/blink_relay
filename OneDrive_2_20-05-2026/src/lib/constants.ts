@@ -72,6 +72,18 @@ export const TYPE_COLORS: Record<RequestType, string> = {
   Defect: 'bg-rose-100 text-rose-700 border-rose-200',
 }
 
+export const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
+  Submitted:    ['InReview', 'Approved', 'Rejected'],
+  InReview:     ['AwaitingInfo', 'Approved', 'Rejected'],
+  AwaitingInfo: ['InfoReceived', 'Closed'],
+  InfoReceived: ['InReview', 'Approved'],
+  Approved:     ['InProgress', 'Rejected'],
+  Rejected:     ['Closed'],
+  InProgress:   ['Completed'],
+  Completed:    ['Closed'],
+  Closed:       [],
+}
+
 export const REVIEWER_ROLES: Role[] = ['PodReviewer', 'ProductManager', 'Admin']
 export const PM_ROLES: Role[] = ['ProductManager', 'Admin']
 

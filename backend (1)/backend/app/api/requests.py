@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -65,7 +65,7 @@ class RequestCreate(BaseModel):
 
 
 class RespondPayload(BaseModel):
-    body: str
+    body: str = Field(..., min_length=1, max_length=5000)
     responder_name: Optional[str] = None
     responder_email: Optional[str] = None
 
@@ -182,24 +182,25 @@ async def list_requests(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
 ) -> RequestListResponse:
-    q = select(Request)
+    filters = []
     if pod:
-        q = q.where(Request.pod == pod)
+        filters.append(Request.pod == pod)
     if status_filter:
-        q = q.where(Request.status == status_filter)
+        filters.append(Request.status == status_filter)
     if request_type:
-        q = q.where(Request.request_type == request_type)
+        filters.append(Request.request_type == request_type)
     if priority:
-        q = q.where(Request.priority == priority)
+        filters.append(Request.priority == priority)
     if search:
-        q = q.where(Request.title.ilike(f"%{search}%"))
-    q = q.order_by(Request.created_at.desc())
+        filters.append(Request.title.ilike(f"%{search}%"))
 
-    count_result = await db.execute(q)
-    total = len(count_result.scalars().all())
+    count_result = await db.execute(select(func.count()).select_from(Request).where(*filters))
+    total = count_result.scalar_one()
 
-    paged = q.offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(paged)
+    result = await db.execute(
+        select(Request).where(*filters).order_by(Request.created_at.desc())
+        .offset((page - 1) * page_size).limit(page_size)
+    )
     items = result.scalars().all()
 
     return RequestListResponse(
@@ -222,22 +223,23 @@ async def list_my_requests(
     page_size: int = Query(25, ge=1, le=100),
 ) -> RequestListResponse:
     """Return the authenticated user's own submitted requests."""
-    q = select(Request).where(Request.submitter_oid == user.oid)
+    filters = [Request.submitter_oid == user.oid]
     if status_filter:
-        q = q.where(Request.status == status_filter)
+        filters.append(Request.status == status_filter)
     if request_type:
-        q = q.where(Request.request_type == request_type)
+        filters.append(Request.request_type == request_type)
     if priority:
-        q = q.where(Request.priority == priority)
+        filters.append(Request.priority == priority)
     if search:
-        q = q.where(Request.title.ilike(f"%{search}%"))
-    q = q.order_by(Request.created_at.desc())
+        filters.append(Request.title.ilike(f"%{search}%"))
 
-    count_result = await db.execute(q)
-    total = len(count_result.scalars().all())
+    count_result = await db.execute(select(func.count()).select_from(Request).where(*filters))
+    total = count_result.scalar_one()
 
-    paged = q.offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(paged)
+    result = await db.execute(
+        select(Request).where(*filters).order_by(Request.created_at.desc())
+        .offset((page - 1) * page_size).limit(page_size)
+    )
     items = result.scalars().all()
 
     return RequestListResponse(

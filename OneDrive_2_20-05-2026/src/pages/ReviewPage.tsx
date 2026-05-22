@@ -19,7 +19,7 @@ import { useRequest, useApproveRequest, useRejectRequest, useUpdateStatus, useSe
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDateTime } from '@/lib/utils'
-import { REQUEST_STATUSES, STATUS_LABELS, REGION_LABELS } from '@/lib/constants'
+import { ALLOWED_TRANSITIONS, STATUS_LABELS, REGION_LABELS } from '@/lib/constants'
 import type { RequestStatus } from '@/lib/types'
 
 const REJECTION_REASONS = [
@@ -220,7 +220,7 @@ export function ReviewPage() {
                 <Select value={newStatus} onValueChange={(v) => setNewStatus(v as RequestStatus)}>
                   <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                   <SelectContent>
-                    {REQUEST_STATUSES.filter((s) => s !== req.status).map((s) => (
+                    {ALLOWED_TRANSITIONS[req.status].map((s) => (
                       <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
                     ))}
                   </SelectContent>
