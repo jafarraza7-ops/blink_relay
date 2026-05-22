@@ -122,11 +122,18 @@ class JsmService:
                 "summary": summary,
                 "description": description,
                 **( {"priority": {"name": priority}} if priority else {} ),
-                **( {"assignee": {"accountId": settings.JIRA_DEFAULT_ASSIGNEE_ACCOUNT_ID}}
-                    if settings.JIRA_DEFAULT_ASSIGNEE_ACCOUNT_ID else {} ),
             },
         }
-        return await self._post_request(payload)
+        result = await self._post_request(payload)
+
+        if settings.JIRA_DEFAULT_ASSIGNEE_ACCOUNT_ID:
+            try:
+                await self._assign_issue(result["key"], settings.JIRA_DEFAULT_ASSIGNEE_ACCOUNT_ID)
+                logger.info("Assigned JSM ticket %s to %s", result["key"], settings.JIRA_DEFAULT_ASSIGNEE_ACCOUNT_ID)
+            except Exception:
+                logger.warning("Failed to assign JSM ticket %s — leaving unassigned", result["key"], exc_info=True)
+
+        return result
 
     @retry(
         retry=retry_if_exception(_is_retryable),
@@ -154,6 +161,19 @@ class JsmService:
                 "url": f"{self._base}/servicedesk/customer/portal/{self._service_desk_id}/{key}",
                 "id": data.get("issueId", key),
             }
+
+    async def _assign_issue(self, issue_key: str, account_id: str) -> None:
+        """Set the assignee on a Jira issue via the REST v3 API."""
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.put(
+                f"{self._base}/rest/api/3/issue/{issue_key}/assignee",
+                json={"accountId": account_id},
+                headers=self._headers,
+            )
+            if resp.status_code not in (200, 204):
+                raise JsmServiceError(
+                    f"Assignee update failed {resp.status_code}: {resp.text}"
+                )
 
     # ── Comments ──────────────────────────────────────────────────────────────
 
