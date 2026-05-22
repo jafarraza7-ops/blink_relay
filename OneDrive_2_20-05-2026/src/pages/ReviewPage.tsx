@@ -1,35 +1,22 @@
 import { useState } from 'react'
 import { useParams, Navigate, Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, ExternalLink, MessageSquare, XCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ExternalLink, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 import { StatusBadge } from '@/components/request/StatusBadge'
 import { PodBadge } from '@/components/request/PodBadge'
 import { PriorityBadge } from '@/components/request/PriorityBadge'
 import { TypeBadge } from '@/components/request/TypeBadge'
 import { MessageThread } from '@/components/request/MessageThread'
 import { FileAttachment } from '@/components/request/FileAttachment'
-import { useRequest, useApproveRequest, useRejectRequest, useUpdateStatus, useSendClarification } from '@/hooks/useRequests'
+import { useRequest, useApproveRequest, useUpdateStatus, useSendClarification } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDateTime } from '@/lib/utils'
 import { ALLOWED_TRANSITIONS, STATUS_LABELS, REGION_LABELS } from '@/lib/constants'
 import type { RequestStatus } from '@/lib/types'
-
-const REJECTION_REASONS = [
-  'Out of scope',
-  'Duplicate request',
-  'Insufficient information',
-  'Not prioritised this cycle',
-  'Alternative solution exists',
-  'Other',
-]
 
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
@@ -38,11 +25,8 @@ export function ReviewPage() {
   const { toast } = useToast()
 
   const approve = useApproveRequest(id ?? '')
-  const reject = useRejectRequest(id ?? '')
   const updateStatus = useUpdateStatus(id ?? '')
 
-  const [rejectReason, setRejectReason] = useState('')
-  const [rejectComment, setRejectComment] = useState('')
   const [newStatus, setNewStatus] = useState<RequestStatus | ''>('')
   const [clarifyText, setClarifyText] = useState('')
 
@@ -64,14 +48,6 @@ export function ReviewPage() {
     approve.mutate({}, {
       onSuccess: () => toast({ title: 'Request approved', description: 'Jira ticket creation queued.' }),
       onError: (err) => toast({ title: 'Failed to approve', description: err.message, variant: 'destructive' }),
-    })
-  }
-
-  const handleReject = () => {
-    if (!rejectReason) return
-    reject.mutate({ reason: rejectReason, comment: rejectComment || undefined }, {
-      onSuccess: () => toast({ title: 'Request rejected' }),
-      onError: (err) => toast({ title: 'Failed to reject', description: err.message, variant: 'destructive' }),
     })
   }
 
@@ -170,48 +146,6 @@ export function ReviewPage() {
               </Card>
             )}
 
-            {/* Reject */}
-            {!['Rejected', 'Completed', 'Closed'].includes(req.status) && (
-              <Card>
-                <CardHeader><CardTitle className="text-base text-destructive">Reject</CardTitle></CardHeader>
-                <CardContent className="space-y-3">
-                  <Select value={rejectReason} onValueChange={setRejectReason}>
-                    <SelectTrigger><SelectValue placeholder="Select reason" /></SelectTrigger>
-                    <SelectContent>
-                      {REJECTION_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Textarea
-                    placeholder="Optional comment for requestor…"
-                    value={rejectComment}
-                    onChange={(e) => setRejectComment(e.target.value)}
-                    rows={3}
-                    className="resize-none"
-                  />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" className="w-full gap-2" disabled={!rejectReason}>
-                        <XCircle className="h-4 w-4" />Reject Request
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Reject this request?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Reason: <strong>{rejectReason}</strong>. The requestor will be notified by email.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleReject} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Confirm Rejection
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Status change */}
             <Card>
