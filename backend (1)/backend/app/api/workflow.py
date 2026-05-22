@@ -1,0 +1,214 @@
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import Annotated, Optional
+
+logger = logging.getLogger(__name__)
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.security import Role, UserClaims, require_role
+from app.models.request import ALLOWED_TRANSITIONS, AuditLog, Message, MessageType, Request, RequestStatus
+from app.workers.tasks import (
+    task_close_jsm_ticket,
+    task_create_jira_ticket,
+    task_jira_add_comment,
+    task_jsm_add_comment,
+    task_send_status_notification,
+)
+
+router = APIRouter(tags=["workflow"])
+
+
+class StatusUpdate(BaseModel):
+    status: RequestStatus
+    comment: Optional[str] = None
+
+
+class ApprovePayload(BaseModel):
+    jira_project_override: Optional[str] = None
+    epic_title: Optional[str] = None
+
+
+class RejectPayload(BaseModel):
+    reason: str
+    comment: Optional[str] = None
+
+
+async def _get_request_or_404(request_id: uuid.UUID, db: AsyncSession) -> Request:
+    req = await db.get(Request, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    return req
+
+
+def _add_audit(
+    db: AsyncSession,
+    req: Request,
+    actor: UserClaims,
+    action: str,
+    prev: str | None = None,
+    new: str | None = None,
+) -> None:
+    db.add(AuditLog(
+        request_id=req.id,
+        actor_oid=actor.oid,
+        actor_email=actor.email,
+        action=action,
+        previous_value=prev,
+        new_value=new,
+    ))
+
+
+def _validate_transition(current: RequestStatus, target: RequestStatus) -> None:
+    allowed = ALLOWED_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Transition from '{current}' to '{target}' is not allowed",
+        )
+
+
+@router.patch("/requests/{request_id}/status", response_model=dict)
+async def update_status(
+    request_id: uuid.UUID,
+    payload: StatusUpdate,
+    user: Annotated[UserClaims, Depends(require_role(Role.POD_REVIEWER, Role.PRODUCT_MANAGER))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    req = await _get_request_or_404(request_id, db)
+    _validate_transition(req.status, payload.status)
+    prev = req.status
+    req.status = payload.status
+    _add_audit(db, req, user, "status_change", str(prev), str(payload.status))
+    if payload.comment:
+        db.add(AuditLog(
+            request_id=req.id,
+            actor_oid=user.oid,
+            actor_email=user.email,
+            action="comment",
+            new_value=payload.comment,
+        ))
+    await db.commit()  # commit before eager task reads the same DB
+    try:
+        task_send_status_notification.delay(str(req.id))
+    except Exception:
+        logger.warning("task_send_status_notification raised in eager mode — non-fatal", exc_info=True)
+
+    jsm_msg = f"Status changed: {prev} → {payload.status} by {user.name}"
+    if payload.comment:
+        jsm_msg += f"\n\nComment: {payload.comment}"
+    task_jsm_add_comment.delay(str(req.id), jsm_msg, True)
+
+    return {"id": str(req.id), "status": str(req.status)}
+
+
+@router.post("/requests/{request_id}/approve", status_code=status.HTTP_200_OK)
+async def approve_request(
+    request_id: uuid.UUID,
+    payload: ApprovePayload,
+    user: Annotated[UserClaims, Depends(require_role(Role.PRODUCT_MANAGER))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    req = await _get_request_or_404(request_id, db)
+    _validate_transition(req.status, RequestStatus.APPROVED)
+
+    prev_status = req.status
+    req.status = RequestStatus.APPROVED
+    _add_audit(db, req, user, "approved", str(prev_status), str(RequestStatus.APPROVED))
+
+    approval_comment = f"Request approved by {user.name}. A Jira implementation ticket will be created shortly."
+    db.add(Message(
+        request_id=req.id,
+        author_oid=user.oid,
+        author_email=user.email,
+        author_name=user.name,
+        body=approval_comment,
+        is_internal=False,
+        message_type=MessageType.COMMENT,
+    ))
+
+    await db.commit()  # commit before eager tasks read the same DB
+
+    try:
+        task_create_jira_ticket.delay(str(req.id), payload.jira_project_override, payload.epic_title)
+    except Exception:
+        logger.warning("task_create_jira_ticket raised in eager mode — non-fatal", exc_info=True)
+    try:
+        task_send_status_notification.delay(str(req.id))
+    except Exception:
+        logger.warning("task_send_status_notification raised in eager mode — non-fatal", exc_info=True)
+    try:
+        task_jsm_add_comment.delay(str(req.id), approval_comment, True)
+    except Exception:
+        logger.warning("task_jsm_add_comment raised in eager mode — non-fatal", exc_info=True)
+
+    return {
+        "id": str(req.id),
+        "status": str(req.status),
+        "message": "Approved — Jira ticket creation queued",
+    }
+
+
+@router.post("/requests/{request_id}/reject", status_code=status.HTTP_200_OK)
+async def reject_request(
+    request_id: uuid.UUID,
+    payload: RejectPayload,
+    user: Annotated[UserClaims, Depends(require_role(Role.PRODUCT_MANAGER))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    req = await _get_request_or_404(request_id, db)
+    _validate_transition(req.status, RequestStatus.REJECTED)
+
+    prev_status = req.status
+    req.status = RequestStatus.REJECTED
+    req.rejection_reason = payload.reason
+    req.rejection_comment = payload.comment
+    req.rejected_by_oid = user.oid
+    _add_audit(db, req, user, "rejected", str(prev_status), str(RequestStatus.REJECTED))
+
+    body = f"Request rejected.\n\nReason: {payload.reason}"
+    if payload.comment:
+        body += f"\n\n{payload.comment}"
+    db.add(Message(
+        request_id=req.id,
+        author_oid=user.oid,
+        author_email=user.email,
+        author_name=user.name,
+        body=body,
+        is_internal=False,
+        message_type=MessageType.COMMENT,
+    ))
+
+    await db.commit()  # commit before eager task reads the same DB
+    try:
+        task_send_status_notification.delay(str(req.id))
+    except Exception:
+        logger.warning("task_send_status_notification raised in eager mode — non-fatal", exc_info=True)
+
+    # Post the rejection comment to the JSM ticket first (best-effort),
+    # then attempt to close it — separately so a failed close doesn't
+    # swallow the comment.
+    jsm_comment = f"Request rejected by {user.name}.\n\nReason: {payload.reason}"
+    if payload.comment:
+        jsm_comment += f"\n\n{payload.comment}"
+    try:
+        task_jsm_add_comment.delay(str(req.id), jsm_comment, True)
+    except Exception:
+        logger.warning("task_jsm_add_comment raised in eager mode — non-fatal", exc_info=True)
+
+    try:
+        task_close_jsm_ticket.delay(str(req.id), jsm_comment)
+    except Exception:
+        logger.warning("task_close_jsm_ticket raised in eager mode — non-fatal", exc_info=True)
+
+    try:
+        task_jira_add_comment.delay(str(req.id), jsm_comment)
+    except Exception:
+        logger.warning("task_jira_add_comment raised in eager mode — non-fatal", exc_info=True)
+
+    return {"id": str(req.id), "status": str(req.status)}

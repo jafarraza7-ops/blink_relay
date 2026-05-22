@@ -1,0 +1,11 @@
+[run]
+source = app
+omit =
+    app/core/insights.py
+    app/core/keyvault.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if TYPE_CHECKING:
