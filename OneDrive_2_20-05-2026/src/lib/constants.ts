@@ -73,12 +73,12 @@ export const TYPE_COLORS: Record<RequestType, string> = {
 }
 
 export const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
-  Submitted:    ['InReview', 'Approved', 'Rejected'],
-  InReview:     ['AwaitingInfo', 'Approved', 'Rejected'],
-  AwaitingInfo: ['InfoReceived', 'Closed'],
+  Submitted:    ['InReview', 'AwaitingInfo', 'Approved', 'Rejected'],
+  InReview:     ['AwaitingInfo', 'Approved', 'Rejected', 'InProgress'],
+  AwaitingInfo: ['InfoReceived'],
   InfoReceived: ['InReview', 'Approved'],
-  Approved:     ['InProgress', 'Rejected'],
-  Rejected:     ['Closed'],
+  Approved:     ['InReview', 'InProgress', 'Rejected'],
+  Rejected:     [],
   InProgress:   ['Completed'],
   Completed:    ['Closed'],
   Closed:       [],

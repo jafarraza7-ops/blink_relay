@@ -74,19 +74,15 @@ class RequestStatus(StrEnum):
 
 
 ALLOWED_TRANSITIONS: dict[RequestStatus, set[RequestStatus]] = {
-    RequestStatus.SUBMITTED: {RequestStatus.IN_REVIEW, RequestStatus.APPROVED, RequestStatus.REJECTED},
-    RequestStatus.IN_REVIEW: {
-        RequestStatus.AWAITING_INFO,
-        RequestStatus.APPROVED,
-        RequestStatus.REJECTED,
-    },
-    RequestStatus.AWAITING_INFO: {RequestStatus.INFO_RECEIVED, RequestStatus.CLOSED},
+    RequestStatus.SUBMITTED:     {RequestStatus.IN_REVIEW, RequestStatus.AWAITING_INFO, RequestStatus.APPROVED, RequestStatus.REJECTED},
+    RequestStatus.IN_REVIEW:     {RequestStatus.AWAITING_INFO, RequestStatus.APPROVED, RequestStatus.REJECTED, RequestStatus.IN_PROGRESS},
+    RequestStatus.AWAITING_INFO: {RequestStatus.INFO_RECEIVED},
     RequestStatus.INFO_RECEIVED: {RequestStatus.IN_REVIEW, RequestStatus.APPROVED},
-    RequestStatus.APPROVED: {RequestStatus.IN_PROGRESS, RequestStatus.REJECTED},
-    RequestStatus.REJECTED: {RequestStatus.CLOSED},
-    RequestStatus.IN_PROGRESS: {RequestStatus.COMPLETED},
-    RequestStatus.COMPLETED: {RequestStatus.CLOSED},
-    RequestStatus.CLOSED: set(),
+    RequestStatus.APPROVED:      {RequestStatus.IN_REVIEW, RequestStatus.IN_PROGRESS, RequestStatus.REJECTED},
+    RequestStatus.REJECTED:      set(),
+    RequestStatus.IN_PROGRESS:   {RequestStatus.COMPLETED},
+    RequestStatus.COMPLETED:     {RequestStatus.CLOSED},
+    RequestStatus.CLOSED:        set(),
 }
 
 

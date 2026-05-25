@@ -19,11 +19,13 @@ settings = get_settings()
 router = APIRouter(tags=["webhook"])
 
 # Jira status → Blink Relay status mapping
+# "To Do" is intentionally excluded — the request is already Approved when the
+# Jira ticket is created; no status change needed on ticket creation.
 _JIRA_TO_STATUS: dict[str, RequestStatus] = {
-    "To Do": RequestStatus.APPROVED,
-    "In Progress": RequestStatus.IN_PROGRESS,
-    "Done": RequestStatus.COMPLETED,
-    "Closed": RequestStatus.CLOSED,
+    "Selected for Development": RequestStatus.IN_REVIEW,
+    "In Progress":              RequestStatus.IN_PROGRESS,
+    "Done":                     RequestStatus.COMPLETED,
+    "Closed":                   RequestStatus.CLOSED,
 }
 
 
