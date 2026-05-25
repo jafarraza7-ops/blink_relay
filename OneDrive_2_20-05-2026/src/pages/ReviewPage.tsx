@@ -115,12 +115,6 @@ export function ReviewPage() {
         <TypeBadge type={req.request_type} />
         <PodBadge pod={req.pod} />
         <PriorityBadge priority={req.priority} />
-        {req.jira_ticket_key && (
-          <a href={req.jira_ticket_url ?? '#'} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-100">
-            <ExternalLink className="h-3 w-3" />{req.jira_ticket_key}
-          </a>
-        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -173,6 +167,27 @@ export function ReviewPage() {
               </Card>
             )}
 
+
+            {/* Jira ticket highlight */}
+            {req.jira_ticket_key && (
+              <Card className="border-blue-300 bg-blue-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base text-blue-800">Jira Ticket Created</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <a
+                    href={req.jira_ticket_url ?? '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between w-full rounded-lg border border-blue-300 bg-white px-4 py-3 hover:bg-blue-50 transition-colors group"
+                  >
+                    <span className="text-lg font-bold text-blue-700 tracking-tight">{req.jira_ticket_key}</span>
+                    <ExternalLink className="h-4 w-4 text-blue-500 group-hover:text-blue-700" />
+                  </a>
+                  <p className="text-xs text-blue-700">Implementation ticket — click to open in Jira.</p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Status change */}
             <Card>

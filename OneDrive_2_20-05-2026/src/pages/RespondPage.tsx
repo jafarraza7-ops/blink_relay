@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Pencil, Send } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Pencil, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -199,13 +199,30 @@ export function RespondPage() {
           </Card>
         )}
 
+        {/* Jira ticket banner — shown when a ticket exists (Approved and beyond) */}
+        {!isAwaitingInfo && req.jira_ticket_key && (
+          <div className="rounded-lg border-2 border-blue-300 bg-blue-50 px-4 py-4 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Jira Implementation Ticket</p>
+            <a
+              href={req.jira_ticket_url ?? '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between rounded-md border border-blue-300 bg-white px-4 py-3 hover:bg-blue-50 transition-colors group"
+            >
+              <span className="text-xl font-bold text-blue-700 tracking-tight">{req.jira_ticket_key}</span>
+              <ExternalLink className="h-5 w-5 text-blue-500 group-hover:text-blue-700" />
+            </a>
+            <p className="text-xs text-blue-700">Your request has been approved — click the ticket above to track implementation progress in Jira.</p>
+          </div>
+        )}
+
         {/* Status message for non-awaiting states */}
-        {!isAwaitingInfo && (
+        {!isAwaitingInfo && !req.jira_ticket_key && (
           <div className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
             {req.status === 'InfoReceived'
               ? 'Your response has been received. The review team will follow up shortly.'
               : req.status === 'Approved'
-              ? 'This request has been approved. A Jira ticket has been created.'
+              ? 'This request has been approved. A Jira ticket will be created shortly.'
               : req.status === 'Rejected'
               ? 'This request has been closed. Contact your PM if you have questions.'
               : 'No action is currently required. You will be notified of any updates by email.'}

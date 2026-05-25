@@ -78,6 +78,7 @@ export function useUpdateStatus(requestId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: requestKeys.detail(requestId) })
       void queryClient.invalidateQueries({ queryKey: requestKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: threadKeys.all(requestId) })
     },
   })
 }

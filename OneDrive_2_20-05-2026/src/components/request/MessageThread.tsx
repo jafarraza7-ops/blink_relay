@@ -75,12 +75,17 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
 
           if (isStatusChange) {
             return (
-              <div key={msg.id} className="flex items-center gap-3 py-1">
-                <div className="flex-1 border-t border-dashed border-muted-foreground/30" />
-                <div className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs text-red-700 text-center whitespace-pre-wrap max-w-[70%]">
-                  {msg.body}
+              <div key={msg.id} className="flex flex-col items-center gap-1 py-1">
+                <div className="flex items-center gap-3 w-full">
+                  <div className="flex-1 border-t border-dashed border-muted-foreground/30" />
+                  <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs text-blue-700 text-center whitespace-pre-wrap max-w-[70%]">
+                    {msg.body}
+                  </div>
+                  <div className="flex-1 border-t border-dashed border-muted-foreground/30" />
                 </div>
-                <div className="flex-1 border-t border-dashed border-muted-foreground/30" />
+                <p className="text-[11px] text-muted-foreground">
+                  {msg.author_name} · {formatDateTime(msg.created_at)}
+                </p>
               </div>
             )
           }

@@ -135,6 +135,15 @@ async def send_clarification(
     prev_status = req.status
     req.status = RequestStatus.AWAITING_INFO
 
+    db.add(Message(
+        request_id=request_id,
+        author_oid=user.oid,
+        author_email=user.email,
+        author_name=user.name,
+        body=f"Status changed from **{prev_status}** to **Awaiting Info** by {user.name}.",
+        is_internal=False,
+        message_type=MessageType.STATUS_CHANGE,
+    ))
     msg = Message(
         request_id=request_id,
         author_oid=user.oid,

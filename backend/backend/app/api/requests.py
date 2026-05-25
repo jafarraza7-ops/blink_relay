@@ -350,6 +350,15 @@ async def respond_to_request(
     author_email = payload.responder_email or req.submitter_email
     author_name = payload.responder_name or req.submitter_name
 
+    db.add(Message(
+        request_id=request_id,
+        author_oid=author_oid,
+        author_email=author_email,
+        author_name=author_name,
+        body=f"Status changed from **Awaiting Info** to **Info Received** — {author_name} submitted additional information.",
+        is_internal=False,
+        message_type=MessageType.STATUS_CHANGE,
+    ))
     msg = Message(
         request_id=request_id,
         author_oid=author_oid,
