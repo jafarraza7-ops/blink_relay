@@ -85,14 +85,19 @@ async def update_status(
     prev = req.status
     req.status = payload.status
     _add_audit(db, req, user, "status_change", str(prev), str(payload.status))
+
+    msg_body = f"Status changed from **{prev}** to **{payload.status}** by {user.name}."
     if payload.comment:
-        db.add(AuditLog(
-            request_id=req.id,
-            actor_oid=user.oid,
-            actor_email=user.email,
-            action="comment",
-            new_value=payload.comment,
-        ))
+        msg_body += f"\n\n{payload.comment}"
+    db.add(Message(
+        request_id=req.id,
+        author_oid=user.oid,
+        author_email=user.email,
+        author_name=user.name,
+        body=msg_body,
+        is_internal=False,
+        message_type=MessageType.STATUS_CHANGE,
+    ))
     await db.commit()  # commit before eager task reads the same DB
     try:
         task_send_status_notification.delay(str(req.id))

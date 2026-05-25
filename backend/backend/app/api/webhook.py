@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.request import AuditLog, Request as BlinkRequest, RequestStatus
+from app.models.request import AuditLog, Message, MessageType, Request as BlinkRequest, RequestStatus
 from app.workers.tasks import task_close_jsm_ticket, task_jsm_add_comment, task_send_status_notification
 
 logger = logging.getLogger(__name__)
@@ -83,6 +83,23 @@ async def jira_webhook(
         action="jira_status_sync",
         previous_value=str(prev),
         new_value=str(new_status),
+    ))
+
+    _webhook_messages: dict[RequestStatus, str] = {
+        RequestStatus.IN_REVIEW:   f"Jira ticket {issue_key} moved to **{jira_status}** — request is now **In Review**.",
+        RequestStatus.IN_PROGRESS: f"Jira ticket {issue_key} is now **In Progress** — implementation has started.",
+        RequestStatus.COMPLETED:   f"Jira ticket {issue_key} has been marked **{jira_status}** — implementation is complete.",
+        RequestStatus.CLOSED:      f"Jira ticket {issue_key} is **Closed** — this request has been resolved.",
+    }
+    msg_body = _webhook_messages.get(new_status, f"Status updated to **{new_status}** via Jira ticket {issue_key}.")
+    db.add(Message(
+        request_id=req.id,
+        author_oid="jira-webhook",
+        author_email="jira@system",
+        author_name="Jira",
+        body=msg_body,
+        is_internal=False,
+        message_type=MessageType.STATUS_CHANGE,
     ))
     await db.commit()  # always commit before firing tasks
     logger.info("Synced %s → %s via Jira webhook (was %s)", issue_key, new_status, prev)
