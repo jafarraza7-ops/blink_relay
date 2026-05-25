@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: blink-relay-api
+    runtime: python
+    rootDir: backend (1)/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: blink-relay-db
+          property: connectionString
+      - key: FRONTEND_URL
+        sync: false
+      - key: JIRA_EMAIL
+        sync: false
+      - key: JIRA_API_TOKEN
+        sync: false
+      - key: JIRA_WEBHOOK_SECRET
+        sync: false
+      - key: JSM_SERVICE_DESK_ID
+        sync: false
+      - key: JSM_REQUEST_TYPE_ID
+        sync: false
+      - key: CELERY_TASK_ALWAYS_EAGER
+        value: "true"
+      - key: EMAIL_BACKEND
+        value: smtp
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+
+databases:
+  - name: blink-relay-db
+    databaseName: blink_relay
+    plan: free
