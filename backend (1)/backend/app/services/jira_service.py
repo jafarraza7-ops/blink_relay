@@ -279,12 +279,12 @@ class JiraService:
             additional_context=additional_context,
         )
         _priority_map = {
-            "CRITICAL": "Highest",
-            "HIGH": "High",
-            "MEDIUM": "Medium",
-            "LOW": "Low",
+            "CRITICAL": "P0 - CRITICAL",
+            "HIGH": "P1 - HIGH",
+            "MEDIUM": "P2 - MEDIUM",
+            "LOW": "P3 - LOW",
         }
-        jira_priority = _priority_map.get(priority.upper(), "Medium")
+        jira_priority = _priority_map.get(priority.upper(), "P2 - MEDIUM")
         if request_type == "Defect":
             return await self.create_bug_ticket(project_key, title, adf, jira_priority, labels, component, assignee_account_id)
         return await self.create_epic(project_key, title, adf, jira_priority, labels, component, assignee_account_id)
