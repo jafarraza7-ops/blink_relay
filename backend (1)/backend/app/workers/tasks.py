@@ -479,6 +479,16 @@ def task_send_status_notification(self, request_id: str) -> None:
                 await notifier.notify_submitted(req.submitter_email, req.title, ref)
             elif req.status == RequestStatus.APPROVED:
                 await notifier.notify_approved(req.submitter_email, req.title, ref, req.jira_ticket_url)
+            elif req.status == RequestStatus.IN_PROGRESS:
+                await notifier.notify_in_progress(
+                    req.submitter_email, req.title, ref, req.jira_ticket_url
+                )
+            elif req.status == RequestStatus.COMPLETED:
+                await notifier.notify_completed(
+                    req.submitter_email, req.title, ref,
+                    jira_url=req.jira_ticket_url,
+                    jsm_url=req.jsm_ticket_url,
+                )
             elif req.status == RequestStatus.REJECTED:
                 await notifier.notify_rejected(
                     req.submitter_email, req.title, ref,

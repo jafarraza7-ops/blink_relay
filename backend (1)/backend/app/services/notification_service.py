@@ -165,6 +165,42 @@ class NotificationService:
         """)
         await self.send_email(submitter_email, subject, body)
 
+    async def notify_in_progress(
+        self,
+        submitter_email: str,
+        title: str,
+        reference_id: str,
+        jira_url: str | None = None,
+    ) -> None:
+        jira_link = _cta_button(jira_url or "", "View Jira ticket")
+        subject = f"[Blink Relay] {reference_id} — implementation started"
+        body = _html_wrap(f"""
+        <h2>Implementation in progress</h2>
+        <p>Great news! Work has started on your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>).</p>
+        {jira_link}
+        """)
+        await self.send_email(submitter_email, subject, body)
+
+    async def notify_completed(
+        self,
+        submitter_email: str,
+        title: str,
+        reference_id: str,
+        jira_url: str | None = None,
+        jsm_url: str | None = None,
+    ) -> None:
+        jira_link = _cta_button(jira_url or "", "View implementation ticket")
+        jsm_link = _cta_button(jsm_url or "", "View service request")
+        subject = f"[Blink Relay] {reference_id} — implementation complete"
+        body = _html_wrap(f"""
+        <h2>Implementation complete</h2>
+        <p>The implementation for your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) has been completed.</p>
+        {jira_link}
+        {jsm_link}
+        <p style="color:#6b7280;font-size:13px">Your service request will be resolved shortly.</p>
+        """)
+        await self.send_email(submitter_email, subject, body)
+
     async def notify_rejected(
         self,
         submitter_email: str,

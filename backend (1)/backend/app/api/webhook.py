@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.request import AuditLog, Request as BlinkRequest, RequestStatus
-from app.workers.tasks import task_close_jsm_ticket
+from app.workers.tasks import task_close_jsm_ticket, task_jsm_add_comment, task_send_status_notification
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -69,27 +69,46 @@ async def jira_webhook(
         return {"received": True, "processed": False}
 
     new_status = _JIRA_TO_STATUS.get(jira_status)
-    if new_status and req.status != new_status:
-        prev = req.status
-        req.status = new_status
-        db.add(AuditLog(
-            request_id=req.id,
-            actor_oid="jira-webhook",
-            actor_email="jira@system",
-            action="jira_status_sync",
-            previous_value=str(prev),
-            new_value=str(new_status),
-        ))
-        logger.info("Synced %s → %s via Jira webhook", issue_key, new_status)
+    if not new_status or req.status == new_status:
+        return {"received": True, "processed": False, "reason": "no_status_change"}
 
-        # Auto-close the JSM ticket and notify the requestor when the dev
-        # ticket reaches a terminal state.
-        if new_status in (RequestStatus.COMPLETED, RequestStatus.CLOSED):
-            await db.commit()  # commit before eager task reads the same DB
-            resolution = (
-                f"Implementation complete in {issue_key} ({jira_status}). "
-                f"Thanks for raising this — your request is now resolved."
-            )
+    prev = req.status
+    req.status = new_status
+    db.add(AuditLog(
+        request_id=req.id,
+        actor_oid="jira-webhook",
+        actor_email="jira@system",
+        action="jira_status_sync",
+        previous_value=str(prev),
+        new_value=str(new_status),
+    ))
+    await db.commit()  # always commit before firing tasks
+    logger.info("Synced %s → %s via Jira webhook (was %s)", issue_key, new_status, prev)
+
+    # Notify the requestor of every status change driven by the Jira ticket
+    try:
+        task_send_status_notification.delay(str(req.id))
+    except Exception:
+        logger.warning("task_send_status_notification raised in eager mode — non-fatal", exc_info=True)
+
+    if new_status == RequestStatus.IN_PROGRESS:
+        jsm_msg = (
+            f"Good news — implementation has started on your request.\n\n"
+            f"Jira ticket: {issue_key} is now *In Progress*."
+        )
+        try:
+            task_jsm_add_comment.delay(str(req.id), jsm_msg, True)
+        except Exception:
+            logger.warning("task_jsm_add_comment raised in eager mode — non-fatal", exc_info=True)
+
+    elif new_status in (RequestStatus.COMPLETED, RequestStatus.CLOSED):
+        resolution = (
+            f"Implementation complete — Jira ticket {issue_key} has been marked *{jira_status}*.\n\n"
+            f"Thank you for raising this request. Your request is now resolved."
+        )
+        try:
             task_close_jsm_ticket.delay(str(req.id), resolution)
+        except Exception:
+            logger.warning("task_close_jsm_ticket raised in eager mode — non-fatal", exc_info=True)
 
-    return {"received": True, "processed": True, "ticket": issue_key}
+    return {"received": True, "processed": True, "ticket": issue_key, "new_status": str(new_status)}
