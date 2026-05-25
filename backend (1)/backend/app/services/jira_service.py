@@ -198,7 +198,7 @@ class JiraService:
         title: str,
         description_adf: dict,
         issue_type: str,
-        priority: str = "Medium",
+        priority: str = "Medium",  # must match a priority name in the Jira project
         labels: list[str] | None = None,
         component: str | None = None,
         assignee_account_id: str | None = None,
@@ -279,12 +279,12 @@ class JiraService:
             additional_context=additional_context,
         )
         _priority_map = {
-            "CRITICAL": "P1 - CRITICAL",
-            "HIGH": "P2 - HIGH",
-            "MEDIUM": "P2 - MEDIUM",
-            "LOW": "P3 - LOW",
+            "CRITICAL": "Highest",
+            "HIGH": "High",
+            "MEDIUM": "Medium",
+            "LOW": "Low",
         }
-        jira_priority = _priority_map.get(priority.upper(), "P2 - MEDIUM")
+        jira_priority = _priority_map.get(priority.upper(), "Medium")
         if request_type == "Defect":
             return await self.create_bug_ticket(project_key, title, adf, jira_priority, labels, component, assignee_account_id)
         return await self.create_epic(project_key, title, adf, jira_priority, labels, component, assignee_account_id)
