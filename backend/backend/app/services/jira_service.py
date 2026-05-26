@@ -309,6 +309,38 @@ class JiraService:
                 ) from exc
             return resp.json()
 
+    async def link_issues(
+        self,
+        inward_key: str,
+        outward_key: str,
+        link_type: str = "Relates",
+    ) -> dict:
+        """Create a formal issue link between two Jira/JSM issues.
+
+        The link appears in the 'Issue links' section of both tickets.
+        ``link_type`` must match a link-type name configured in the Jira instance
+        (e.g. 'Relates', 'Blocks', 'Cloners').
+        """
+        payload = {
+            "type": {"name": link_type},
+            "inwardIssue": {"key": inward_key},
+            "outwardIssue": {"key": outward_key},
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{self._base}/rest/api/3/issueLink",
+                json=payload,
+                headers=self._headers,
+            )
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise JiraServiceError(
+                    f"Jira link error {exc.response.status_code}: {exc.response.text}"
+                ) from exc
+        logger.info("Linked %s ↔ %s (%s)", inward_key, outward_key, link_type)
+        return {"inward": inward_key, "outward": outward_key, "type": link_type}
+
     @staticmethod
     def verify_webhook_signature(body: bytes, signature: str, secret: str) -> bool:
         if not secret:

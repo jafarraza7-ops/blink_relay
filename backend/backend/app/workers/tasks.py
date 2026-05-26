@@ -147,13 +147,28 @@ def task_create_jira_ticket(
             await db.commit()  # commit before eager tasks read jira_ticket_key
             logger.info("Jira ticket %s created for request %s", ticket["key"], request_id)
 
-            # Mirror the dev-ticket link into the JSM activity log so the
-            # requestor sees the link from inside the service-desk portal.
+            # Link Jira ↔ JSM tickets so both show each other in Issue Links.
             if req.jsm_ticket_key:
+                try:
+                    await jira.link_issues(ticket["key"], req.jsm_ticket_key)
+                except Exception:
+                    logger.warning(
+                        "Failed to link %s ↔ %s — non-fatal",
+                        ticket["key"], req.jsm_ticket_key, exc_info=True,
+                    )
+
+                # Comment on JSM so the requestor sees the implementation link.
                 task_jsm_add_comment.delay(
                     request_id,
                     f"Implementation ticket created: {ticket['key']} — {ticket['url']}",
                     True,  # public
+                )
+
+                # Comment on the Jira ticket so the dev team sees the JSM link.
+                jsm_url = req.jsm_ticket_url or f"{_settings.JIRA_BASE_URL}/browse/{req.jsm_ticket_key}"
+                task_jira_add_comment.delay(
+                    request_id,
+                    f"Linked to JSM service-desk ticket {req.jsm_ticket_key}: {jsm_url}",
                 )
 
             # Sync all attachments to the new Jira ticket (and JSM if present).
