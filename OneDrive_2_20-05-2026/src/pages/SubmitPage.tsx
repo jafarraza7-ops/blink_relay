@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, type UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft, ArrowRight, Bug, Check, File, Sparkles, Upload, X } from 'lucide-react'
@@ -23,7 +23,7 @@ const submitSchema = z.object({
   request_type: z.enum(['Feature', 'Defect'] as const),
   priority: z.enum(['Critical', 'High', 'Medium', 'Low'] as const),
   pod: z.enum(['Charger', 'Driver', 'Revenue', 'Data', 'DevOps', 'Denali'] as const),
-  region: z.enum(['NA', 'UK', 'EU'] as const),
+  region: z.array(z.enum(['NA', 'UK', 'EU'] as const)).min(1, 'Select at least one region'),
   title: z.string().min(5, 'Title must be at least 5 characters').max(200),
   business_problem: z.string().min(20, 'Please provide at least 20 characters'),
   expected_outcome: z.string().optional(),
@@ -75,11 +75,17 @@ const PRIORITY_CONFIG: Array<{ value: Priority; label: string; desc: string; col
   { value: 'Low', label: 'Low', desc: 'Minor / nice to have', color: 'border-slate-300 text-slate-600' },
 ]
 
-function Step1({ form }: { form: ReturnType<typeof useForm<SubmitForm>> }) {
+function Step1({ form }: { form: UseFormReturn<SubmitForm> }) {
   const type = form.watch('request_type')
   const priority = form.watch('priority')
   const pod = form.watch('pod')
-  const region = form.watch('region')
+  const regions = (form.watch('region') ?? []) as Region[]
+
+  const toggleRegion = (r: Region) => {
+    const current = regions
+    const next = current.includes(r) ? current.filter((x) => x !== r) : [...current, r]
+    form.setValue('region', next, { shouldValidate: true })
+  }
 
   return (
     <div className="space-y-6">
@@ -168,18 +174,18 @@ function Step1({ form }: { form: ReturnType<typeof useForm<SubmitForm>> }) {
       {/* Region selection */}
       <div>
         <h2 className="text-lg font-semibold mb-1">Region</h2>
-        <p className="text-sm text-muted-foreground mb-4">Select the region this request applies to.</p>
+        <p className="text-sm text-muted-foreground mb-4">Select one or more regions this request applies to.</p>
         <div className="grid grid-cols-3 gap-2">
           {REGIONS.map((r) => (
             <button
               key={r}
               type="button"
-              onClick={() => form.setValue('region', r as Region)}
+              onClick={() => toggleRegion(r as Region)}
               className={cn(
                 'flex flex-col items-start rounded-lg border-2 px-4 py-3 text-left transition-all hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                region === r ? 'border-primary bg-primary/5' : 'border-border'
+                regions.includes(r as Region) ? 'border-primary bg-primary/5' : 'border-border'
               )}
-              aria-pressed={region === r}
+              aria-pressed={regions.includes(r as Region)}
             >
               <span className="font-semibold text-sm">{r}</span>
               <span className="text-xs text-muted-foreground leading-tight mt-0.5">{REGION_LABELS[r]}</span>
@@ -196,7 +202,7 @@ function Step1({ form }: { form: ReturnType<typeof useForm<SubmitForm>> }) {
 
 // ── Step 2: Details ────────────────────────────────────────────────────────────
 
-function Step2({ form }: { form: ReturnType<typeof useForm<SubmitForm>> }) {
+function Step2({ form }: { form: UseFormReturn<SubmitForm> }) {
   const isDefect = form.watch('request_type') === 'Defect'
 
   return (
@@ -377,7 +383,7 @@ export function SubmitPage() {
     defaultValues: {
       request_type: 'Feature',
       priority: 'Medium',
-      region: 'NA',
+      region: ['NA'] as Region[],
       title: '',
       business_problem: '',
       affected_area: '',

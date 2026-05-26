@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,13 +55,20 @@ class RequestCreate(BaseModel):
     title: str
     request_type: RequestType
     pod: Pod
-    region: Region = Region.NA
+    region: list[Region] = Field(default_factory=lambda: [Region.NA])
     priority: Priority = Priority.MEDIUM
     business_problem: str
     expected_outcome: Optional[str] = None
     steps_to_reproduce: Optional[str] = None
     affected_area: str
     additional_context: Optional[str] = None
+
+    @field_validator('region')
+    @classmethod
+    def region_not_empty(cls, v: list[Region]) -> list[Region]:
+        if not v:
+            raise ValueError('At least one region must be selected')
+        return v
 
 
 class RespondPayload(BaseModel):
@@ -78,12 +85,19 @@ class RequestUpdate(BaseModel):
     """
     title: Optional[str] = None
     priority: Optional[Priority] = None
-    region: Optional[Region] = None
+    region: Optional[list[Region]] = None
     business_problem: Optional[str] = None
     expected_outcome: Optional[str] = None
     steps_to_reproduce: Optional[str] = None
     affected_area: Optional[str] = None
     additional_context: Optional[str] = None
+
+    @field_validator('region')
+    @classmethod
+    def region_not_empty(cls, v: Optional[list[Region]]) -> Optional[list[Region]]:
+        if v is not None and not v:
+            raise ValueError('At least one region must be selected')
+        return v
 
 
 # Statuses where the submitter is still allowed to edit. After approve/reject
@@ -102,7 +116,7 @@ class RequestResponse(BaseModel):
     title: str
     request_type: RequestType
     pod: Pod
-    region: Region
+    region: list[str]
     priority: Priority
     status: RequestStatus
     business_problem: str

@@ -27,7 +27,7 @@ export interface BlinkRequest {
   title: string
   request_type: RequestType
   pod: Pod
-  region: Region
+  region: Region[]
   priority: Priority
   status: RequestStatus
   business_problem: string
@@ -50,7 +50,7 @@ export interface RequestCreate {
   title: string
   request_type: RequestType
   pod: Pod
-  region: Region
+  region: Region[]
   priority: Priority
   business_problem: string
   expected_outcome?: string
@@ -62,7 +62,7 @@ export interface RequestCreate {
 export interface RequestUpdate {
   title?: string
   priority?: Priority
-  region?: Region
+  region?: Region[]
   business_problem?: string
   expected_outcome?: string
   steps_to_reproduce?: string

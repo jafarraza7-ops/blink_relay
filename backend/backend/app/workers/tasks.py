@@ -136,7 +136,7 @@ def task_create_jira_ticket(
                 submitter_email=req.submitter_email,
                 reference_id=req.reference_id,
                 affected_area=req.affected_area,
-                region=str(req.region),
+                region=", ".join(req.region) if isinstance(req.region, list) else str(req.region),
                 expected_outcome=req.expected_outcome,
                 steps_to_reproduce=req.steps_to_reproduce,
                 additional_context=req.additional_context,
@@ -334,7 +334,7 @@ def task_create_jsm_ticket(self, request_id: str) -> dict:
                 f"*Blink Relay reference:* {req.reference_id or request_id}\n\n"
                 f"*Business problem:*\n{req.business_problem}\n\n"
                 f"*Affected area:* {req.affected_area}\n"
-                f"*Region:* {req.region}\n"
+                f"*Region:* {', '.join(req.region) if isinstance(req.region, list) else req.region}\n"
                 f"*Priority:* {req.priority}\n"
                 f"*POD:* {req.pod}"
             )

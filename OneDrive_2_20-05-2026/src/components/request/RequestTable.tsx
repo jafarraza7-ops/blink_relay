@@ -1,5 +1,6 @@
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpDown, ExternalLink } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from './StatusBadge'
@@ -8,6 +9,35 @@ import { PriorityBadge } from './PriorityBadge'
 import { TypeBadge } from './TypeBadge'
 import { formatDate, truncate } from '@/lib/utils'
 import type { BlinkRequest } from '@/lib/types'
+
+type SortCol = 'reference_id' | 'title' | 'request_type' | 'pod' | 'priority' | 'status' | 'created_at'
+type SortDir = 'asc' | 'desc'
+
+const PRIORITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+const STATUS_ORDER: Record<string, number> = {
+  Submitted: 0, InReview: 1, AwaitingInfo: 2, InfoReceived: 3,
+  Approved: 4, InProgress: 5, Completed: 6, Rejected: 7, Closed: 8,
+}
+
+function sortRequests(requests: BlinkRequest[], col: SortCol, dir: SortDir): BlinkRequest[] {
+  return [...requests].sort((a, b) => {
+    let cmp = 0
+    if (col === 'priority') {
+      cmp = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99)
+    } else if (col === 'status') {
+      cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99)
+    } else if (col === 'created_at') {
+      cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    } else {
+      const av = (a[col] ?? '') as string
+      const bv = (b[col] ?? '') as string
+      cmp = av.localeCompare(bv)
+    }
+    return dir === 'asc' ? cmp : -cmp
+  })
+}
+
+const PAGE_SIZE = 10
 
 interface RequestTableProps {
   requests: BlinkRequest[]
@@ -18,8 +48,40 @@ interface RequestTableProps {
   hideSubmitter?: boolean
 }
 
+function SortIcon({ col, active, dir }: { col: SortCol; active: SortCol; dir: SortDir }) {
+  if (active !== col) return <ArrowUpDown className="ml-1 h-3 w-3 opacity-40" />
+  return dir === 'asc'
+    ? <ArrowUp className="ml-1 h-3 w-3 text-primary" />
+    : <ArrowDown className="ml-1 h-3 w-3 text-primary" />
+}
+
 export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitter }: RequestTableProps) {
+  const [sortCol, setSortCol] = useState<SortCol>('created_at')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [page, setPage] = useState(1)
   const buildLink = rowLinkBuilder ?? ((req: BlinkRequest) => `/requests/${req.id}`)
+
+  const sorted = useMemo(
+    () => sortRequests(requests, sortCol, sortDir),
+    [requests, sortCol, sortDir],
+  )
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = useMemo(
+    () => sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [sorted, safePage],
+  )
+
+  const handleSort = (col: SortCol) => {
+    if (col === sortCol) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+    setPage(1)
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -37,32 +99,37 @@ export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitte
     )
   }
 
+  const SortBtn = ({ col, label }: { col: SortCol; label: string }) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 px-1 -ml-1 font-medium"
+      onClick={() => handleSort(col)}
+    >
+      {label}
+      <SortIcon col={col} active={sortCol} dir={sortDir} />
+    </Button>
+  )
+
   return (
+    <>
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>
-            <Button variant="ghost" size="sm" className="h-7 px-1 -ml-1">
-              Reference <ArrowUpDown className="ml-1 h-3 w-3" />
-            </Button>
-          </TableHead>
-          <TableHead>Title</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead>Pod</TableHead>
-          <TableHead>Priority</TableHead>
-          <TableHead>Status</TableHead>
+          <TableHead><SortBtn col="reference_id" label="Reference" /></TableHead>
+          <TableHead><SortBtn col="title" label="Title" /></TableHead>
+          <TableHead><SortBtn col="request_type" label="Type" /></TableHead>
+          <TableHead><SortBtn col="pod" label="Pod" /></TableHead>
+          <TableHead><SortBtn col="priority" label="Priority" /></TableHead>
+          <TableHead><SortBtn col="status" label="Status" /></TableHead>
           {!hideSubmitter && <TableHead>Submitted by</TableHead>}
-          <TableHead>
-            <Button variant="ghost" size="sm" className="h-7 px-1 -ml-1">
-              Date <ArrowUpDown className="ml-1 h-3 w-3" />
-            </Button>
-          </TableHead>
+          <TableHead><SortBtn col="created_at" label="Date" /></TableHead>
           <TableHead>Service ticket</TableHead>
           <TableHead>Dev ticket</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {requests.map((req) => (
+        {pageItems.map((req) => (
           <TableRow key={req.id}>
             <TableCell className="font-mono text-xs text-muted-foreground">
               {req.reference_id ?? '—'}
@@ -121,5 +188,45 @@ export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitte
         ))}
       </TableBody>
     </Table>
+
+    {totalPages > 1 && (
+      <div className="flex items-center justify-between border-t px-4 py-3">
+        <p className="text-xs text-muted-foreground">
+          Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, sorted.length)} of {sorted.length}
+        </p>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 w-7 p-0"
+            disabled={safePage <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <Button
+              key={p}
+              variant={p === safePage ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 w-7 p-0 text-xs"
+              onClick={() => setPage(p)}
+            >
+              {p}
+            </Button>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 w-7 p-0"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    )}
+  </>
   )
 }

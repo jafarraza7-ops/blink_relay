@@ -125,7 +125,7 @@ export function ReviewPage() {
             <CardHeader><CardTitle className="text-base">Request Details</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <Field label="Business Problem" value={req.business_problem} />
-              <Field label="Region" value={REGION_LABELS[req.region]} />
+              <Field label="Region" value={req.region.map((r) => REGION_LABELS[r] ?? r).join(', ')} />
               {req.expected_outcome && <Field label="Expected Outcome" value={req.expected_outcome} />}
               {req.steps_to_reproduce && <Field label="Steps to Reproduce" value={req.steps_to_reproduce} />}
               <Field label="Affected Area" value={req.affected_area} />

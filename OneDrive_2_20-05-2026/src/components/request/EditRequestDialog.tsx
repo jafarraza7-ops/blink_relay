@@ -15,8 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { useUpdateRequest } from '@/hooks/useRequests'
+import { cn } from '@/lib/utils'
 import { PRIORITIES, REGIONS, REGION_LABELS } from '@/lib/constants'
 import type { BlinkRequest, RequestUpdate, Priority, Region } from '@/lib/types'
+
+
 
 interface EditRequestDialogProps {
   request: BlinkRequest
@@ -27,7 +30,7 @@ interface EditRequestDialogProps {
 interface FormState {
   title: string
   priority: Priority
-  region: Region
+  region: Region[]
   business_problem: string
   expected_outcome: string
   steps_to_reproduce: string
@@ -38,7 +41,7 @@ interface FormState {
 const fromRequest = (req: BlinkRequest): FormState => ({
   title: req.title,
   priority: req.priority,
-  region: req.region,
+  region: Array.isArray(req.region) ? req.region : [req.region],
   business_problem: req.business_problem,
   expected_outcome: req.expected_outcome ?? '',
   steps_to_reproduce: req.steps_to_reproduce ?? '',
@@ -50,7 +53,10 @@ function buildPayload(initial: FormState, current: FormState): RequestUpdate {
   const payload: RequestUpdate = {}
   if (current.title !== initial.title) payload.title = current.title.trim()
   if (current.priority !== initial.priority) payload.priority = current.priority
-  if (current.region !== initial.region) payload.region = current.region
+  const regionChanged =
+    current.region.length !== initial.region.length ||
+    current.region.some((r) => !initial.region.includes(r))
+  if (regionChanged) payload.region = current.region
   if (current.business_problem !== initial.business_problem) {
     payload.business_problem = current.business_problem.trim()
   }
@@ -150,20 +156,33 @@ export function EditRequestDialog({ request, open, onOpenChange }: EditRequestDi
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="edit-region">Region</Label>
-            <Select
-              value={form.region}
-              onValueChange={(v) => update('region', v as Region)}
-            >
-              <SelectTrigger id="edit-region">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {REGIONS.map((r) => (
-                  <SelectItem key={r} value={r}>{REGION_LABELS[r]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Region</Label>
+            <div className="flex gap-2 flex-wrap">
+              {REGIONS.map((r) => {
+                const selected = form.region.includes(r as Region)
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      const next = selected
+                        ? form.region.filter((x) => x !== r)
+                        : [...form.region, r as Region]
+                      if (next.length > 0) update('region', next)
+                    }}
+                    className={cn(
+                      'rounded-md border-2 px-4 py-2 text-sm font-medium transition-colors',
+                      selected
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-border hover:border-primary/50'
+                    )}
+                    aria-pressed={selected}
+                  >
+                    {r} <span className="font-normal text-muted-foreground">· {REGION_LABELS[r as Region]}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div className="space-y-1.5">

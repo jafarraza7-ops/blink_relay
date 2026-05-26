@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { PODS, PRIORITIES, REQUEST_TYPES } from '@/lib/constants'
 import type { Pod, RequestStatus, RequestType, Priority } from '@/lib/types'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 50
 const REFRESH_MS = 30_000
 
 const STATUS_TABS: Array<{ value: RequestStatus | 'all'; label: string }> = [
@@ -75,7 +75,6 @@ export function DashboardPage() {
   const { data: awaitData } = useRequests({ status: 'AwaitingInfo', page_size: 1 }, { refetchInterval: REFRESH_MS })
   const { data: approvedData } = useRequests({ status: 'Approved', page_size: 1 }, { refetchInterval: REFRESH_MS })
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1
   const hasFilters = search || priority !== 'all' || requestType !== 'all'
 
   return (
@@ -175,22 +174,6 @@ export function DashboardPage() {
         <RequestTable requests={data?.items ?? []} isLoading={isLoading} />
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Page {page} of {totalPages} ({data?.total} requests)
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

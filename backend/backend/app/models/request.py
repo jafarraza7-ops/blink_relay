@@ -116,8 +116,8 @@ class Request(Base):
     priority: Mapped[Priority] = mapped_column(
         Enum(Priority, name="priority"), nullable=False, default=Priority.MEDIUM
     )
-    region: Mapped[Region] = mapped_column(
-        Enum(Region, name="region"), nullable=False, default=Region.NA
+    region: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=lambda: ["NA"]
     )
     status: Mapped[RequestStatus] = mapped_column(
         Enum(RequestStatus, name="request_status"),
