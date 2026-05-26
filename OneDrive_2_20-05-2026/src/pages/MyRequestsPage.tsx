@@ -224,7 +224,7 @@ export function MyRequestsPage() {
                     onClick={() => setStatuses((prev) => toggle(prev, s))}
                     className={cn(
                       'rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                      active ? STATUS_COLORS[s] : 'bg-background border-border hover:bg-muted'
+                      cn(STATUS_COLORS[s], active ? 'shadow-sm' : 'opacity-40 hover:opacity-75')
                     )}
                     aria-pressed={active}
                   >
@@ -254,7 +254,7 @@ export function MyRequestsPage() {
                       onClick={() => setPriorities((prev) => toggle(prev, p))}
                       className={cn(
                         'rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                        active ? PRIORITY_COLORS[p] : 'bg-background border-border hover:bg-muted'
+                        cn(PRIORITY_COLORS[p], active ? 'shadow-sm' : 'opacity-40 hover:opacity-75')
                       )}
                       aria-pressed={active}
                     >
@@ -282,7 +282,7 @@ export function MyRequestsPage() {
                       onClick={() => setTypes((prev) => toggle(prev, t))}
                       className={cn(
                         'rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                        active ? TYPE_COLORS[t] : 'bg-background border-border hover:bg-muted'
+                        cn(TYPE_COLORS[t], active ? 'shadow-sm' : 'opacity-40 hover:opacity-75')
                       )}
                       aria-pressed={active}
                     >
