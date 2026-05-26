@@ -8,7 +8,10 @@ import { useRequests } from '@/hooks/useRequests'
 import { cn } from '@/lib/utils'
 import {
   PODS, PRIORITIES, REQUEST_TYPES, REQUEST_STATUSES, STATUS_LABELS,
-  STATUS_COLORS, POD_COLORS, PRIORITY_COLORS, TYPE_COLORS,
+  STATUS_COLORS, STATUS_ACTIVE_COLORS,
+  POD_COLORS, POD_ACTIVE_COLORS,
+  PRIORITY_COLORS, PRIORITY_ACTIVE_COLORS,
+  TYPE_COLORS, TYPE_ACTIVE_COLORS,
 } from '@/lib/constants'
 import type { Pod, RequestStatus, RequestType, Priority } from '@/lib/types'
 
@@ -151,7 +154,7 @@ export function DashboardPage() {
                     onClick={() => setStatuses((prev) => toggle(prev, s))}
                     className={cn(
                       'rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                      cn(STATUS_COLORS[s], active ? 'shadow-sm' : 'opacity-40 hover:opacity-75')
+                      active ? STATUS_ACTIVE_COLORS[s] : STATUS_COLORS[s]
                     )}
                     aria-pressed={active}
                   >
@@ -185,7 +188,7 @@ export function DashboardPage() {
                       onClick={() => setPods((prev) => toggle(prev, p))}
                       className={cn(
                         'rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                        cn(POD_COLORS[p], active ? 'shadow-sm' : 'opacity-40 hover:opacity-75')
+                        active ? POD_ACTIVE_COLORS[p] : POD_COLORS[p]
                       )}
                       aria-pressed={active}
                     >
@@ -216,7 +219,7 @@ export function DashboardPage() {
                       onClick={() => setPriorities((prev) => toggle(prev, p))}
                       className={cn(
                         'rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                        cn(PRIORITY_COLORS[p], active ? 'shadow-sm' : 'opacity-40 hover:opacity-75')
+                        active ? PRIORITY_ACTIVE_COLORS[p] : PRIORITY_COLORS[p]
                       )}
                       aria-pressed={active}
                     >
@@ -247,7 +250,7 @@ export function DashboardPage() {
                       onClick={() => setTypes((prev) => toggle(prev, t))}
                       className={cn(
                         'rounded-full px-3 py-1 text-xs font-medium border transition-all',
-                        cn(TYPE_COLORS[t], active ? 'shadow-sm' : 'opacity-40 hover:opacity-75')
+                        active ? TYPE_ACTIVE_COLORS[t] : TYPE_COLORS[t]
                       )}
                       aria-pressed={active}
                     >

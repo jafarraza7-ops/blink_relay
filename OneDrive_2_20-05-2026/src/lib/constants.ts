@@ -72,6 +72,41 @@ export const TYPE_COLORS: Record<RequestType, string> = {
   Defect: 'bg-rose-100 text-rose-700 border-rose-200',
 }
 
+// Darker variants used for the "active/selected" state in filter pills
+export const STATUS_ACTIVE_COLORS: Record<RequestStatus, string> = {
+  Submitted:    'bg-slate-300 text-slate-900 border-slate-500',
+  InReview:     'bg-blue-300 text-blue-900 border-blue-500',
+  AwaitingInfo: 'bg-amber-300 text-amber-900 border-amber-500',
+  InfoReceived: 'bg-cyan-300 text-cyan-900 border-cyan-500',
+  Approved:     'bg-green-300 text-green-900 border-green-500',
+  Rejected:     'bg-red-300 text-red-900 border-red-500',
+  InProgress:   'bg-violet-300 text-violet-900 border-violet-500',
+  Completed:    'bg-emerald-300 text-emerald-900 border-emerald-500',
+  Closed:       'bg-gray-300 text-gray-800 border-gray-500',
+}
+
+export const POD_ACTIVE_COLORS: Record<Pod, string> = {
+  Charger: 'bg-orange-300 text-orange-900 border-orange-500',
+  Driver:  'bg-sky-300 text-sky-900 border-sky-500',
+  Revenue: 'bg-green-300 text-green-900 border-green-500',
+  Data:    'bg-purple-300 text-purple-900 border-purple-500',
+  DevOps:  'bg-zinc-300 text-zinc-900 border-zinc-500',
+  Denali:  'bg-indigo-300 text-indigo-900 border-indigo-500',
+  Unknown: 'bg-gray-300 text-gray-800 border-gray-500',
+}
+
+export const PRIORITY_ACTIVE_COLORS: Record<Priority, string> = {
+  Critical: 'bg-red-300 text-red-900 border-red-500',
+  High:     'bg-orange-300 text-orange-900 border-orange-500',
+  Medium:   'bg-yellow-300 text-yellow-900 border-yellow-500',
+  Low:      'bg-slate-300 text-slate-800 border-slate-500',
+}
+
+export const TYPE_ACTIVE_COLORS: Record<RequestType, string> = {
+  Feature: 'bg-blue-300 text-blue-900 border-blue-500',
+  Defect:  'bg-rose-300 text-rose-900 border-rose-500',
+}
+
 export const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
   Submitted:    ['InReview', 'AwaitingInfo', 'Approved', 'Rejected'],
   InReview:     ['AwaitingInfo', 'Approved', 'Rejected', 'InProgress'],
