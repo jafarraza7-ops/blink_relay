@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { RequestTable } from '@/components/request/RequestTable'
 import { useMyRequests } from '@/hooks/useRequests'
 import { cn } from '@/lib/utils'
-import { PRIORITIES, REQUEST_TYPES, STATUS_LABELS } from '@/lib/constants'
+import { PRIORITIES, REQUEST_TYPES, STATUS_LABELS, STATUS_COLORS, PRIORITY_COLORS, TYPE_COLORS } from '@/lib/constants'
 import type { BlinkRequest, Priority, RequestStatus, RequestType } from '@/lib/types'
 
 const REFRESH_MS = 30_000
@@ -87,7 +87,8 @@ export function MyRequestsPage() {
     return items
   }, [allItems, statuses, priorities, types])
 
-  const hasFilters = statuses.length > 0 || priorities.length > 0 || types.length > 0 || search
+  const activeCount = statuses.length + priorities.length + types.length + (search ? 1 : 0)
+  const hasFilters = activeCount > 0
 
   const clearAll = () => {
     setStatuses([])
@@ -120,19 +121,27 @@ export function MyRequestsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My Requests</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Track the status of every request you've submitted to the Blink product teams.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/submit">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            New Request
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {hasFilters && (
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={clearAll}>
+              <X className="h-3 w-3" />
+              Clear {activeCount} filter{activeCount !== 1 ? 's' : ''}
+            </Button>
+          )}
+          <Button asChild>
+            <Link to="/submit">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              New Request
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -175,91 +184,114 @@ export function MyRequestsPage() {
         </Card>
       )}
 
-      {/* Filters */}
-      <div className="rounded-lg border bg-card p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold">Filters</p>
-          {hasFilters && (
-            <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={clearAll}>
-              <X className="h-3 w-3" />
-              Clear all
-            </Button>
+      {/* Filter bar */}
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search requests by title…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 pr-9 h-10"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           )}
         </div>
 
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by title…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Status</p>
-          <div className="flex flex-wrap gap-1.5">
-            {STATUS_OPTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatuses((prev) => toggle(prev, s))}
-                className={cn(
-                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                  statuses.includes(s)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-background hover:bg-muted border-border'
-                )}
-                aria-pressed={statuses.includes(s)}
-              >
-                {STATUS_LABELS[s]}
-              </button>
-            ))}
+        <div className="rounded-xl border bg-muted/30 divide-y">
+          {/* Status */}
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Status</span>
+              {statuses.length > 0 && (
+                <span className="text-xs text-primary font-medium cursor-pointer hover:underline" onClick={() => setStatuses([])}>Clear</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUS_OPTIONS.map((s) => {
+                const active = statuses.includes(s)
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStatuses((prev) => toggle(prev, s))}
+                    className={cn(
+                      'rounded-full px-3 py-1 text-xs font-medium border transition-all',
+                      active ? STATUS_COLORS[s] : 'bg-background border-border hover:bg-muted'
+                    )}
+                    aria-pressed={active}
+                  >
+                    {STATUS_LABELS[s]}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
 
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Priority</p>
-          <div className="flex flex-wrap gap-1.5">
-            {PRIORITIES.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPriorities((prev) => toggle(prev, p))}
-                className={cn(
-                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                  priorities.includes(p)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-background hover:bg-muted border-border'
+          {/* Priority + Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+            <div className="px-4 py-3">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Priority</span>
+                {priorities.length > 0 && (
+                  <span className="text-xs text-primary font-medium cursor-pointer hover:underline" onClick={() => setPriorities([])}>Clear</span>
                 )}
-                aria-pressed={priorities.includes(p)}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {PRIORITIES.map((p) => {
+                  const active = priorities.includes(p)
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPriorities((prev) => toggle(prev, p))}
+                      className={cn(
+                        'rounded-full px-3 py-1 text-xs font-medium border transition-all',
+                        active ? PRIORITY_COLORS[p] : 'bg-background border-border hover:bg-muted'
+                      )}
+                      aria-pressed={active}
+                    >
+                      {p}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
 
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Type</p>
-          <div className="flex flex-wrap gap-1.5">
-            {REQUEST_TYPES.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTypes((prev) => toggle(prev, t))}
-                className={cn(
-                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                  types.includes(t)
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-background hover:bg-muted border-border'
+            <div className="px-4 py-3">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Type</span>
+                {types.length > 0 && (
+                  <span className="text-xs text-primary font-medium cursor-pointer hover:underline" onClick={() => setTypes([])}>Clear</span>
                 )}
-                aria-pressed={types.includes(t)}
-              >
-                {t}
-              </button>
-            ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {REQUEST_TYPES.map((t) => {
+                  const active = types.includes(t)
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setTypes((prev) => toggle(prev, t))}
+                      className={cn(
+                        'rounded-full px-3 py-1 text-xs font-medium border transition-all',
+                        active ? TYPE_COLORS[t] : 'bg-background border-border hover:bg-muted'
+                      )}
+                      aria-pressed={active}
+                    >
+                      {t}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>
