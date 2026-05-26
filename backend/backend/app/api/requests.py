@@ -7,7 +7,11 @@ from typing import Annotated, Optional
 
 logger = logging.getLogger(__name__)
 
+import csv
+import io
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -222,6 +226,69 @@ async def list_requests(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/requests/export")
+async def export_requests_csv(
+    user: Annotated[UserClaims, Depends(require_role(Role.POD_REVIEWER, Role.PRODUCT_MANAGER))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    pod: Optional[Pod] = Query(None),
+    status_filter: Optional[RequestStatus] = Query(None, alias="status"),
+    request_type: Optional[RequestType] = Query(None),
+    priority: Optional[Priority] = Query(None),
+    search: Optional[str] = Query(None, max_length=200),
+) -> StreamingResponse:
+    """Export all matching requests as a CSV file (no pagination limit)."""
+    filters = []
+    if pod:
+        filters.append(Request.pod == pod)
+    if status_filter:
+        filters.append(Request.status == status_filter)
+    if request_type:
+        filters.append(Request.request_type == request_type)
+    if priority:
+        filters.append(Request.priority == priority)
+    if search:
+        filters.append(Request.title.ilike(f"%{search}%"))
+
+    result = await db.execute(
+        select(Request).where(*filters).order_by(Request.created_at.desc())
+    )
+    items = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Reference ID", "Title", "Type", "Status", "Pod", "Priority", "Region",
+        "Submitter Name", "Submitter Email", "Affected Area",
+        "Jira Ticket", "JSM Ticket", "Created At", "Updated At",
+    ])
+    for r in items:
+        region = ", ".join(r.region) if isinstance(r.region, list) else str(r.region)
+        writer.writerow([
+            r.reference_id or "",
+            r.title,
+            str(r.request_type),
+            str(r.status),
+            str(r.pod),
+            str(r.priority),
+            region,
+            r.submitter_name,
+            r.submitter_email,
+            r.affected_area,
+            r.jira_ticket_key or "",
+            r.jsm_ticket_key or "",
+            r.created_at.strftime("%Y-%m-%d %H:%M UTC"),
+            r.updated_at.strftime("%Y-%m-%d %H:%M UTC"),
+        ])
+
+    output.seek(0)
+    filename = f"blink-requests-{datetime.now(tz=timezone.utc).strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

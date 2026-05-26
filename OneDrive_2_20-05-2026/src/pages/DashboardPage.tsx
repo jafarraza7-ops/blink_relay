@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Activity, CheckCircle2, Clock, FileText, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Activity, CheckCircle2, Clock, Download, FileText, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { RequestTable } from '@/components/request/RequestTable'
 import { useRequests } from '@/hooks/useRequests'
+import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 import {
   PODS, PRIORITIES, REQUEST_TYPES, REQUEST_STATUSES, STATUS_LABELS,
@@ -50,6 +51,10 @@ export function DashboardPage() {
   const [priorities, setPriorities] = useState<Priority[]>([])
   const [types, setTypes] = useState<RequestType[]>([])
   const [search, setSearch] = useState('')
+  const [exporting, setExporting] = useState(false)
+
+  const { isPM, isReviewer } = useAuth()
+  const canExport = isPM || isReviewer
 
   const { data, isLoading } = useRequests(
     { ...(search && { search }), page: 1, page_size: 500 },
@@ -83,20 +88,74 @@ export function DashboardPage() {
     setSearch('')
   }
 
+  const exportCsv = async () => {
+    setExporting(true)
+    try {
+      const rows: string[][] = [[
+        'Reference ID', 'Title', 'Type', 'Status', 'Pod', 'Priority', 'Region',
+        'Submitter Name', 'Submitter Email', 'Affected Area',
+        'Jira Ticket', 'JSM Ticket', 'Created At',
+      ]]
+      for (const r of filtered) {
+        rows.push([
+          r.reference_id ?? '',
+          r.title,
+          r.request_type,
+          STATUS_LABELS[r.status],
+          r.pod,
+          r.priority,
+          Array.isArray(r.region) ? r.region.join(', ') : String(r.region),
+          r.submitter_name,
+          r.submitter_email,
+          r.affected_area,
+          r.jira_ticket_key ?? '',
+          r.jsm_ticket_key ?? '',
+          new Date(r.created_at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC',
+        ])
+      }
+      const csv = rows.map((row) =>
+        row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
+      ).join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `blink-requests-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-end justify-between">
+      <div className="flex items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Tech requests overview · refreshes every 30 s</p>
         </div>
-        {hasFilters && (
-          <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={clearAll}>
-            <X className="h-3 w-3" />
-            Clear {activeCount} filter{activeCount !== 1 ? 's' : ''}
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {hasFilters && (
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={clearAll}>
+              <X className="h-3 w-3" />
+              Clear {activeCount} filter{activeCount !== 1 ? 's' : ''}
+            </Button>
+          )}
+          {canExport && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-8"
+              onClick={exportCsv}
+              disabled={exporting || filtered.length === 0}
+            >
+              <Download className="h-3 w-3" />
+              {exporting ? 'Exporting…' : `Export CSV${filtered.length > 0 ? ` (${filtered.length})` : ''}`}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stat cards */}

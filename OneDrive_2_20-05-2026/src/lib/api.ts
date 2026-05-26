@@ -88,6 +88,18 @@ export const requestsApi = {
     return apiClient.get<RequestListResponse>('/api/requests/mine', { params }).then((r) => r.data)
   },
 
+  exportCsv: (filters: Omit<RequestFilters, 'page' | 'page_size'> = {}): Promise<Blob> => {
+    const params: Record<string, string> = {}
+    if (filters.pod) params.pod = filters.pod
+    if (filters.status) params.status = filters.status
+    if (filters.request_type) params.request_type = filters.request_type
+    if (filters.priority) params.priority = filters.priority
+    if (filters.search) params.search = filters.search
+    return apiClient
+      .get('/api/requests/export', { params, responseType: 'blob' })
+      .then((r) => r.data as Blob)
+  },
+
   get: (id: string): Promise<BlinkRequest> =>
     apiClient.get<BlinkRequest>(`/api/requests/${id}`).then((r) => r.data),
 
