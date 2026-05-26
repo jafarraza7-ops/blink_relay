@@ -16,6 +16,7 @@ from app.models.request import ALLOWED_TRANSITIONS, AuditLog, Message, MessageTy
 from app.workers.tasks import (
     task_close_jsm_ticket,
     task_create_jira_ticket,
+    task_create_jsm_ticket,
     task_jira_add_comment,
     task_jsm_add_comment,
     task_send_status_notification,
@@ -217,3 +218,35 @@ async def reject_request(
         logger.warning("task_jira_add_comment raised in eager mode — non-fatal", exc_info=True)
 
     return {"id": str(req.id), "status": str(req.status)}
+
+
+@router.post("/admin/backfill-jsm", status_code=status.HTTP_200_OK)
+async def backfill_jsm_tickets(
+    user: Annotated[UserClaims, Depends(require_role(Role.ADMIN))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Queue JSM ticket creation for every request that doesn't have one yet.
+
+    Idempotent — task_create_jsm_ticket skips requests that already have a
+    jsm_ticket_key, so this is safe to call multiple times.
+    """
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(Request).where(Request.jsm_ticket_key.is_(None))
+    )
+    requests = result.scalars().all()
+
+    if not requests:
+        return {"queued": 0, "message": "All requests already have JSM tickets"}
+
+    queued = 0
+    for req in requests:
+        try:
+            task_create_jsm_ticket.delay(str(req.id))
+            queued += 1
+            logger.info("Queued JSM ticket creation for %s (%s)", req.reference_id or req.id, req.title)
+        except Exception:
+            logger.warning("Failed to queue JSM task for %s", req.id, exc_info=True)
+
+    return {"queued": queued, "total_missing": len(requests)}
