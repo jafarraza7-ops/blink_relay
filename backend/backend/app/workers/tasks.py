@@ -85,6 +85,8 @@ def task_create_jira_ticket(
     request_id: str,
     project_override: str | None = None,
     epic_title: str | None = None,
+    approver_name: str | None = None,
+    approver_email: str | None = None,
 ) -> dict:
     from app.core.config import get_settings as _get_settings
     from app.core.database import db_session
@@ -140,6 +142,8 @@ def task_create_jira_ticket(
                 additional_context=req.additional_context,
                 component=str(req.pod) if req.pod else None,
                 assignee_account_id=assignee_account_id,
+                approver_name=approver_name,
+                approver_email=approver_email,
             )
 
             req.jira_ticket_key = ticket["key"]

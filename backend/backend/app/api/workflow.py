@@ -140,7 +140,7 @@ async def approve_request(
     await db.commit()  # commit before eager tasks read the same DB
 
     try:
-        task_create_jira_ticket.delay(str(req.id), payload.jira_project_override, payload.epic_title)
+        task_create_jira_ticket.delay(str(req.id), payload.jira_project_override, payload.epic_title, user.name, user.email)
     except Exception:
         logger.warning("task_create_jira_ticket raised in eager mode — non-fatal", exc_info=True)
     try:

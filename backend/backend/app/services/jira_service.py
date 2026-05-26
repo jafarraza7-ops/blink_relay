@@ -58,6 +58,8 @@ def _build_adf_description(
     expected_outcome: str | None = None,
     steps_to_reproduce: str | None = None,
     additional_context: str | None = None,
+    approver_name: str | None = None,
+    approver_email: str | None = None,
 ) -> dict:
     content = [
         _adf_heading("Business Problem"),
@@ -73,13 +75,16 @@ def _build_adf_description(
         content += [_adf_heading("Steps to Reproduce"), _adf_paragraph(steps_to_reproduce)]
     if additional_context:
         content += [_adf_heading("Additional Context"), _adf_paragraph(additional_context)]
-    content += [
-        _adf_heading("Metadata"),
-        _adf_paragraph(
-            f"Submitted by: {submitter_name} ({submitter_email})\n"
-            f"Blink Relay ID: {reference_id or 'N/A'}"
-        ),
-    ]
+    metadata = (
+        f"Submitted by: {submitter_name} ({submitter_email})\n"
+        f"Blink Relay ID: {reference_id or 'N/A'}"
+    )
+    if approver_name:
+        approver_line = f"Approved by: {approver_name}"
+        if approver_email:
+            approver_line += f" ({approver_email})"
+        metadata += f"\n{approver_line}"
+    content += [_adf_heading("Metadata"), _adf_paragraph(metadata)]
     return {"type": "doc", "version": 1, "content": content}
 
 
@@ -266,6 +271,8 @@ class JiraService:
         additional_context: str | None = None,
         component: str | None = None,
         assignee_account_id: str | None = None,
+        approver_name: str | None = None,
+        approver_email: str | None = None,
     ) -> dict:
         adf = _build_adf_description(
             business_problem=description,
@@ -277,6 +284,8 @@ class JiraService:
             expected_outcome=expected_outcome,
             steps_to_reproduce=steps_to_reproduce,
             additional_context=additional_context,
+            approver_name=approver_name,
+            approver_email=approver_email,
         )
         _priority_map = {
             "CRITICAL": "P0 - CRITICAL",
