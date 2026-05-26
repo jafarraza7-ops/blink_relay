@@ -194,7 +194,7 @@ async def list_requests(
     priority: Optional[Priority] = Query(None),
     search: Optional[str] = Query(None, max_length=200),
     page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
+    page_size: int = Query(25, ge=1, le=1000),
 ) -> RequestListResponse:
     filters = []
     if pod:
@@ -234,7 +234,7 @@ async def list_my_requests(
     priority: Optional[Priority] = Query(None),
     search: Optional[str] = Query(None, max_length=200),
     page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
+    page_size: int = Query(25, ge=1, le=1000),
 ) -> RequestListResponse:
     """Return the authenticated user's own submitted requests."""
     filters = [Request.submitter_oid == user.oid]
