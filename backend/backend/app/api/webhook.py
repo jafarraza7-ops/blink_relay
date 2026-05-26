@@ -110,24 +110,41 @@ async def jira_webhook(
     except Exception:
         logger.warning("task_send_status_notification raised in eager mode — non-fatal", exc_info=True)
 
-    if new_status == RequestStatus.IN_PROGRESS:
-        jsm_msg = (
+    # Post a JSM comment for every Jira status transition so the requestor
+    # always sees the latest progress on their service-desk ticket.
+    _jsm_messages: dict[RequestStatus, str] = {
+        RequestStatus.IN_REVIEW: (
+            f"Your request is being scoped for development.\n\n"
+            f"Jira ticket *{issue_key}* has been selected for the development queue."
+        ),
+        RequestStatus.IN_PROGRESS: (
             f"Good news — implementation has started on your request.\n\n"
-            f"Jira ticket: {issue_key} is now *In Progress*."
-        )
+            f"Jira ticket *{issue_key}* is now *In Progress*."
+        ),
+        RequestStatus.COMPLETED: (
+            f"Implementation is complete — Jira ticket *{issue_key}* has been marked *{jira_status}*.\n\n"
+            f"Thank you for raising this request. Your request is now resolved."
+        ),
+        RequestStatus.CLOSED: (
+            f"This request has been closed — Jira ticket *{issue_key}* is *{jira_status}*.\n\n"
+            f"Thank you for using Blink Relay."
+        ),
+    }
+
+    jsm_msg = _jsm_messages.get(
+        new_status,
+        f"Update on your request — Jira ticket *{issue_key}* status changed to *{jira_status}*.",
+    )
+
+    if new_status in (RequestStatus.COMPLETED, RequestStatus.CLOSED):
+        try:
+            task_close_jsm_ticket.delay(str(req.id), jsm_msg)
+        except Exception:
+            logger.warning("task_close_jsm_ticket raised in eager mode — non-fatal", exc_info=True)
+    else:
         try:
             task_jsm_add_comment.delay(str(req.id), jsm_msg, True)
         except Exception:
             logger.warning("task_jsm_add_comment raised in eager mode — non-fatal", exc_info=True)
-
-    elif new_status in (RequestStatus.COMPLETED, RequestStatus.CLOSED):
-        resolution = (
-            f"Implementation complete — Jira ticket {issue_key} has been marked *{jira_status}*.\n\n"
-            f"Thank you for raising this request. Your request is now resolved."
-        )
-        try:
-            task_close_jsm_ticket.delay(str(req.id), resolution)
-        except Exception:
-            logger.warning("task_close_jsm_ticket raised in eager mode — non-fatal", exc_info=True)
 
     return {"received": True, "processed": True, "ticket": issue_key, "new_status": str(new_status)}
