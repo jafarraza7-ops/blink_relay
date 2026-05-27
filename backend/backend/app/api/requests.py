@@ -1,3 +1,21 @@
+"""
+api/requests.py — CRUD endpoints for Blink Relay intake requests.
+
+Endpoints:
+  POST   /requests              — Submit a new Feature/Defect request (any auth'd user).
+  GET    /requests              — List all requests with filters (PodReviewer/PM only).
+  GET    /requests/export       — Export filtered requests as CSV (PodReviewer/PM only).
+  GET    /requests/mine         — Submitter's own request history.
+  GET    /requests/{id}         — Single request detail (no role restriction).
+  PATCH  /requests/{id}         — Edit a request while still under review.
+  POST   /requests/{id}/respond — Public endpoint: submitter replies to a clarification question.
+
+Key behaviours:
+  - On creation, a JSM ticket and submission email are triggered immediately (Celery tasks).
+  - If pod == UNKNOWN at submission, an AI-based routing task tries to assign the correct pod.
+  - Commits are done before .delay() calls because eager-mode Celery tasks hit the same DB row.
+  - region is always stored as a JSON array; the field validator prevents an empty list.
+"""
 from __future__ import annotations
 
 import logging
@@ -156,6 +174,11 @@ async def create_request(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[Optional[UserClaims], Depends(get_optional_user)],
 ) -> RequestResponse:
+    """Submit a new intake request.
+
+    Uses get_optional_user so unauthenticated (external) submissions are still
+    accepted — the submitter fields fall back to anonymous identifiers in that case.
+    """
     submitter_oid = user.oid if user else "anonymous"
     submitter_email = user.email if user else "unknown@external"
     submitter_name = user.name if user else "External User"
@@ -179,6 +202,9 @@ async def create_request(
         task_send_status_notification.delay(str(req.id))
     except Exception:
         logger.warning("task_send_status_notification raised in eager mode — non-fatal", exc_info=True)
+    # Only trigger AI routing when the submitter couldn't identify the pod.
+    # The routing service uses keyword matching to pick the best pod and only
+    # updates the request if confidence >= 65%.
     if req.pod == Pod.UNKNOWN:
         try:
             route_request_to_pod.delay(str(req.id))
@@ -200,6 +226,8 @@ async def list_requests(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=1000),
 ) -> RequestListResponse:
+    """Paginated list of all requests for the reviewer dashboard.
+    Supports filtering by pod, status, type, priority, and title keyword search."""
     filters = []
     if pod:
         filters.append(Request.pod == pod)
@@ -336,6 +364,8 @@ async def get_request(
     request_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> RequestResponse:
+    """Fetch a single request by ID. No role restriction — used by both the
+    reviewer dashboard and the requestor's own detail view."""
     req = await db.get(Request, request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -401,6 +431,7 @@ async def update_request(
     await db.commit()
     await db.refresh(req)
 
+    # Notify JSM so the requestor's service-desk ticket reflects the edit.
     if changed_summary:
         task_jsm_add_comment.delay(
             str(req.id),

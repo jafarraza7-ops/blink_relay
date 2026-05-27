@@ -1,3 +1,21 @@
+"""
+api/workflow.py — State-transition endpoints for the Blink Relay review workflow.
+
+Endpoints:
+  PATCH  /requests/{id}/status  — Generic status move (PodReviewer/PM).
+  POST   /requests/{id}/approve — Approve a request and trigger Jira ticket creation (PM only).
+  POST   /requests/{id}/reject  — Reject a request with a reason and optional comment (PM only).
+  POST   /admin/backfill-jsm    — One-time admin tool to create missing JSM tickets (Admin only).
+
+All transitions are validated against ALLOWED_TRANSITIONS before being applied,
+so this router is the single enforcement point for the status state machine.
+
+On every status change:
+  - An AuditLog row is written.
+  - A Message (status_change type) is added to the request thread.
+  - task_send_status_notification is fired to email the requestor.
+  - task_jsm_add_comment mirrors the update to the JSM ticket.
+"""
 from __future__ import annotations
 
 import logging
@@ -25,22 +43,33 @@ from app.workers.tasks import (
 router = APIRouter(tags=["workflow"])
 
 
+# ── Schemas ───────────────────────────────────────────────────────────────────
+
 class StatusUpdate(BaseModel):
+    """Payload for a generic status move. Comment is shown in the request thread."""
     status: RequestStatus
     comment: Optional[str] = None
 
 
 class ApprovePayload(BaseModel):
+    """Optional overrides for Jira ticket creation on approval.
+    jira_project_override lets the PM direct the ticket to a non-default project.
+    epic_title overrides the Jira issue title (defaults to the request title)."""
     jira_project_override: Optional[str] = None
     epic_title: Optional[str] = None
 
 
 class RejectPayload(BaseModel):
+    """reason is a short category string shown in the thread and email;
+    comment is an optional free-text elaboration for the requestor."""
     reason: str
     comment: Optional[str] = None
 
 
+# ── Shared helpers ────────────────────────────────────────────────────────────
+
 async def _get_request_or_404(request_id: uuid.UUID, db: AsyncSession) -> Request:
+    """Fetch a Request by UUID or raise 404."""
     req = await db.get(Request, request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -55,6 +84,7 @@ def _add_audit(
     prev: str | None = None,
     new: str | None = None,
 ) -> None:
+    """Append an AuditLog entry for the given action. Caller must commit."""
     db.add(AuditLog(
         request_id=req.id,
         actor_oid=actor.oid,
@@ -66,6 +96,7 @@ def _add_audit(
 
 
 def _validate_transition(current: RequestStatus, target: RequestStatus) -> None:
+    """Raise 409 if the requested status transition is not in ALLOWED_TRANSITIONS."""
     allowed = ALLOWED_TRANSITIONS.get(current, set())
     if target not in allowed:
         raise HTTPException(
@@ -74,6 +105,8 @@ def _validate_transition(current: RequestStatus, target: RequestStatus) -> None:
         )
 
 
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
 @router.patch("/requests/{request_id}/status", response_model=dict)
 async def update_status(
     request_id: uuid.UUID,
@@ -81,6 +114,8 @@ async def update_status(
     user: Annotated[UserClaims, Depends(require_role(Role.POD_REVIEWER, Role.PRODUCT_MANAGER))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
+    """Move a request to any valid next status. Used for non-approve/reject transitions
+    (e.g. InReview → AwaitingInfo, or InProgress → Completed)."""
     req = await _get_request_or_404(request_id, db)
     _validate_transition(req.status, payload.status)
     prev = req.status
@@ -120,6 +155,12 @@ async def approve_request(
     user: Annotated[UserClaims, Depends(require_role(Role.PRODUCT_MANAGER))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
+    """Approve a request and kick off Jira ticket creation.
+
+    Only ProductManagers (or Admins) can approve. After approval the DB is committed
+    before firing Celery tasks so the tasks see the updated status and can safely
+    read jira_ticket_key once it's populated by task_create_jira_ticket.
+    """
     req = await _get_request_or_404(request_id, db)
     _validate_transition(req.status, RequestStatus.APPROVED)
 
@@ -167,6 +208,12 @@ async def reject_request(
     user: Annotated[UserClaims, Depends(require_role(Role.PRODUCT_MANAGER))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
+    """Reject a request, recording the reason and notifying the requestor.
+
+    Rejection is terminal — ALLOWED_TRANSITIONS has an empty set for REJECTED.
+    The JSM comment is posted before the close attempt so the requestor sees the
+    reason even if the ticket-close step fails.
+    """
     req = await _get_request_or_404(request_id, db)
     _validate_transition(req.status, RequestStatus.REJECTED)
 

@@ -1,3 +1,22 @@
+/**
+ * DashboardPage.tsx — Reviewer / PM overview of all tech requests.
+ *
+ * Visible to: PodReviewer, ProductManager, Admin.
+ *
+ * Filtering strategy: fetches page_size=500 in a single request, then
+ * filters client-side. This is intentional — the backend query params
+ * only accept a single scalar value per field, so multi-select filters
+ * (e.g. status=Submitted&status=InReview) cannot be expressed as URL
+ * params without backend changes. Client-side filtering is the pragmatic
+ * solution while 500 covers the realistic request volume.
+ *
+ * Stat cards use four separate single-item queries (page_size=1) just to
+ * get accurate `total` counts per status — they don't need full item data.
+ *
+ * CSV export is generated client-side from the already-filtered array so
+ * the download always matches exactly what the user sees on screen.
+ */
+
 import { useMemo, useState } from 'react'
 import { Activity, CheckCircle2, Clock, Download, FileText, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,11 +35,21 @@ import {
 } from '@/lib/constants'
 import type { Pod, RequestStatus, RequestType, Priority } from '@/lib/types'
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const REFRESH_MS = 30_000
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Immutable toggle: adds `item` to `arr` if absent, removes it if present.
+ * Used for all multi-select filter pill interactions.
+ */
 function toggle<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]
 }
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 interface StatCardProps {
   icon: React.ElementType
@@ -29,6 +58,7 @@ interface StatCardProps {
   color: string
 }
 
+/** Single KPI tile shown in the top stat row. `value` is undefined while loading. */
 function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
   return (
     <Card>
@@ -45,7 +75,11 @@ function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
   )
 }
 
+// ── Page component ────────────────────────────────────────────────────────────
+
+/** Main reviewer/PM dashboard with multi-select filters and CSV export. */
 export function DashboardPage() {
+  // ── Filter state ────────────────────────────────────────────────────────────
   const [statuses, setStatuses] = useState<RequestStatus[]>([])
   const [pods, setPods] = useState<Pod[]>([])
   const [priorities, setPriorities] = useState<Priority[]>([])
@@ -54,13 +88,20 @@ export function DashboardPage() {
   const [exporting, setExporting] = useState(false)
 
   const { isPM, isReviewer } = useAuth()
+  // Only PM and reviewers can export — requestors don't have access to this page
   const canExport = isPM || isReviewer
 
+  // ── Data fetching ───────────────────────────────────────────────────────────
+  // page_size=500 fetches all requests so client-side multi-select filtering
+  // works correctly. Search is the only filter sent to the server because it
+  // can't be replicated client-side without the full text index.
   const { data, isLoading } = useRequests(
     { ...(search && { search }), page: 1, page_size: 500 },
     { refetchInterval: REFRESH_MS },
   )
 
+  // Stat card counts use separate lightweight queries (page_size=1) — we only
+  // need the `total` field from the response, not the full item list.
   const { data: totalData }    = useRequests({ page_size: 1 }, { refetchInterval: REFRESH_MS })
   const { data: newData }      = useRequests({ status: 'Submitted', page_size: 1 }, { refetchInterval: REFRESH_MS })
   const { data: awaitData }    = useRequests({ status: 'AwaitingInfo', page_size: 1 }, { refetchInterval: REFRESH_MS })
@@ -68,6 +109,9 @@ export function DashboardPage() {
 
   const allItems = data?.items ?? []
 
+  // ── Client-side filtering ───────────────────────────────────────────────────
+  // Applied on top of the server-fetched page. Multi-select arrays are ANDed:
+  // a request must match ALL active filter groups, each group OR'd internally.
   const filtered = useMemo(() => {
     let items = allItems
     if (statuses.length > 0)   items = items.filter((r) => statuses.includes(r.status))
@@ -88,6 +132,13 @@ export function DashboardPage() {
     setSearch('')
   }
 
+  // ── CSV export ──────────────────────────────────────────────────────────────
+  /**
+   * Generates the CSV blob client-side from `filtered` (not from the API
+   * export endpoint) so that active multi-select filters are correctly
+   * reflected in the download. region is stored as string[] since migration
+   * 007, so we join the array before writing to CSV.
+   */
   const exportCsv = async () => {
     setExporting(true)
     try {
@@ -104,6 +155,7 @@ export function DashboardPage() {
           STATUS_LABELS[r.status],
           r.pod,
           r.priority,
+          // region is string[] post-migration 007; guard against legacy string values
           Array.isArray(r.region) ? r.region.join(', ') : String(r.region),
           r.submitter_name,
           r.submitter_email,
@@ -113,6 +165,7 @@ export function DashboardPage() {
           new Date(r.created_at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC',
         ])
       }
+      // RFC 4180: quote every field and escape internal quotes by doubling them
       const csv = rows.map((row) =>
         row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
       ).join('\n')

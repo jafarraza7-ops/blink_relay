@@ -1,3 +1,23 @@
+"""
+core/security.py — Authentication and authorisation for Blink Relay.
+
+Auth flow:
+  1. The React SPA acquires a bearer JWT from Microsoft Entra ID (MSAL).
+  2. Every protected API endpoint receives the token in the Authorization header.
+  3. get_current_user() validates the JWT against Entra's public JWKS endpoint,
+     extracts the user's roles (app roles configured in the Entra app manifest),
+     and returns a UserClaims object used as a FastAPI dependency.
+
+Local dev bypass:
+  Set SKIP_AUTH=true in the environment to skip JWT validation entirely. Use
+  SKIP_AUTH_AS=pm|admin|requestor to impersonate a built-in mock user. The
+  dependency still uses optional_bearer_scheme (auto_error=False) so the
+  endpoint body is always reached even when no token is present.
+
+Role hierarchy:
+  Admin > ProductManager / PodReviewer > Requestor (read-only).
+  require_role() enforces this; Admins bypass all role checks.
+"""
 from __future__ import annotations
 
 import logging
@@ -21,11 +41,19 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# ── Bearer schemes ────────────────────────────────────────────────────────────
+
+# bearer_scheme raises 401 immediately if the header is missing (strict endpoints).
 bearer_scheme = HTTPBearer(auto_error=True)
+# optional_bearer_scheme lets the request through even with no token; the
+# dependency function decides what to do (used for SKIP_AUTH and public routes).
 optional_bearer_scheme = HTTPBearer(auto_error=False)
 
 
+# ── Domain models ─────────────────────────────────────────────────────────────
+
 class Role(StrEnum):
+    """Application roles assigned to users in the Entra app registration manifest."""
     REQUESTOR = "Requestor"
     POD_REVIEWER = "PodReviewer"
     PRODUCT_MANAGER = "ProductManager"
@@ -98,6 +126,12 @@ def validate_token(token: str) -> dict:
             ) from exc
 
 
+# ── JWKS helpers ──────────────────────────────────────────────────────────────
+
+# ── Local-dev mock users ───────────────────────────────────────────────────────
+
+# Pre-built user fixtures used when SKIP_AUTH=true. Ethereal addresses are
+# throw-away inboxes so notification emails are safe to send in dev.
 _MOCK_USERS: dict[str, UserClaims] = {
     "admin": UserClaims(
         oid="smoke-test-admin",
@@ -123,12 +157,21 @@ _MOCK_USERS: dict[str, UserClaims] = {
 }
 
 
+# ── FastAPI dependencies ───────────────────────────────────────────────────────
+
 def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
+    credentials: Annotated[
+        Optional[HTTPAuthorizationCredentials],
+        Security(optional_bearer_scheme),
+    ],
 ) -> UserClaims:
     """FastAPI dependency — validates the bearer token and returns user claims."""
-    if settings.SKIP_AUTH:
-        return _MOCK_USERS.get(settings.SKIP_AUTH_AS, _MOCK_USERS["admin"])
+    _s = get_settings()
+    if _s.SKIP_AUTH:
+        return _MOCK_USERS.get(_s.SKIP_AUTH_AS, _MOCK_USERS["admin"])
+
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     claims = validate_token(credentials.credentials)
 

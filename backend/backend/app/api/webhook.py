@@ -1,3 +1,17 @@
+"""
+api/webhook.py — Jira webhook receiver for bi-directional status sync.
+
+Jira pushes an event to POST /api/webhook/jira whenever an issue is updated.
+This endpoint:
+  1. Verifies the HMAC-SHA256 signature (skipped in local dev if JIRA_WEBHOOK_SECRET is unset).
+  2. Looks up the Blink Relay request by jira_ticket_key.
+  3. Maps the Jira status to a Blink Relay RequestStatus via _JIRA_TO_STATUS.
+  4. Updates the request status, writes an AuditLog and Message row.
+  5. Fires async tasks to email the requestor and update the JSM ticket.
+
+For COMPLETED/CLOSED statuses the JSM ticket is resolved (not just commented on)
+so the customer-facing service-desk ticket is closed in sync with the Jira ticket.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -30,6 +44,8 @@ _JIRA_TO_STATUS: dict[str, RequestStatus] = {
 
 
 def _verify_jira_signature(body: bytes, signature: str) -> bool:
+    """Return True if the request body matches the HMAC-SHA256 signature sent by Jira.
+    Returns True unconditionally in local dev when JIRA_WEBHOOK_SECRET is not configured."""
     if not settings.JIRA_WEBHOOK_SECRET:
         return True  # skip verification in local dev
     expected = hmac.new(
@@ -51,6 +67,8 @@ async def jira_webhook(
     payload = await request.json()
     event = payload.get("webhookEvent", "")
 
+    # Only process issue-updated events. All other event types (e.g. project
+    # events, comment events) are acknowledged but ignored.
     if event not in ("jira:issue_updated",):
         return {"received": True, "processed": False}
 
@@ -70,6 +88,8 @@ async def jira_webhook(
         logger.info("Jira webhook: no request found for ticket %s", issue_key)
         return {"received": True, "processed": False}
 
+    # Skip unmapped statuses (e.g. "To Do" — no relay action needed on ticket creation)
+    # and skip if the relay status is already up-to-date (idempotent on duplicate events).
     new_status = _JIRA_TO_STATUS.get(jira_status)
     if not new_status or req.status == new_status:
         return {"received": True, "processed": False, "reason": "no_status_change"}
@@ -136,6 +156,9 @@ async def jira_webhook(
         f"Update on your request — Jira ticket *{issue_key}* status changed to *{jira_status}*.",
     )
 
+    # For terminal statuses we close the JSM ticket (which also posts the comment
+    # internally). For all other transitions we post a comment so the requestor
+    # sees progress without the ticket being prematurely closed.
     if new_status in (RequestStatus.COMPLETED, RequestStatus.CLOSED):
         try:
             task_close_jsm_ticket.delay(str(req.id), jsm_msg)

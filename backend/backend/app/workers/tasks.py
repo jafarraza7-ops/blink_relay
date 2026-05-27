@@ -1,3 +1,37 @@
+"""
+workers/tasks.py — Celery background tasks for Blink Relay.
+
+All tasks are registered with autoretry_for=(Exception,) so transient failures
+(network blips, Jira API timeouts) are retried automatically.
+
+Async / event-loop design
+--------------------------
+Celery workers are synchronous, but the service layer (JiraService, JsmService,
+NotificationService) uses async/await. The _run() helper bridges the two:
+  - If called from within a running event loop (eager mode inside FastAPI),
+    it executes the coroutine in a fresh thread to avoid "loop already running".
+  - If called from a real Celery worker (no running loop), it creates a new loop.
+
+Eager mode (local dev)
+-----------------------
+When CELERY_TASK_ALWAYS_EAGER=True, .delay() calls run synchronously in-process.
+Every API endpoint commits to the DB before calling .delay() so that eager tasks
+see the updated row immediately — they read from the same DB connection.
+
+Tasks overview:
+  route_request_to_pod            — AI keyword routing for pod=UNKNOWN requests.
+  task_create_jira_ticket         — Create the Jira implementation ticket on approval.
+  task_jira_add_comment           — Post a comment to the Jira ticket.
+  task_sync_attachments           — Upload stored blobs to Jira/JSM as attachments.
+  task_create_jsm_ticket          — Create the customer-facing JSM ticket on submission.
+  task_jsm_add_comment            — Post a comment to the JSM ticket.
+  task_close_jsm_ticket           — Resolve the JSM ticket (idempotent).
+  task_send_status_notification   — Email the requestor on any status change.
+  task_send_email                 — Low-level generic email dispatch.
+  task_send_clarification_email   — Email requestor when a PM asks a question.
+  task_notify_pm_clarification_response — Email the PM when the requestor responds.
+  sync_jira_status                — Poll-based fallback to sync Jira status (webhook alternative).
+"""
 from __future__ import annotations
 
 import asyncio
@@ -27,6 +61,8 @@ def _run(coro):
             loop.close()
 
 
+# ── Pod routing ───────────────────────────────────────────────────────────────
+
 @celery_app.task(
     bind=True,
     name="app.workers.tasks.route_request_to_pod",
@@ -35,6 +71,11 @@ def _run(coro):
     autoretry_for=(Exception,),
 )
 def route_request_to_pod(self, request_id: str) -> dict:
+    """Auto-assign a pod to a request submitted with pod=UNKNOWN.
+
+    Uses keyword/ML scoring; only commits the result when confidence >= 65%
+    to avoid mis-routing requests where the business problem is ambiguous.
+    """
     from app.core.database import db_session
     from app.models.request import Pod, Request
     from app.services.pod_routing_service import PodRoutingService
@@ -73,6 +114,8 @@ def route_request_to_pod(self, request_id: str) -> dict:
     return _run(_route())
 
 
+# ── Jira ticket creation task ─────────────────────────────────────────────────
+
 @celery_app.task(
     bind=True,
     name="app.workers.tasks.task_create_jira_ticket",
@@ -88,6 +131,16 @@ def task_create_jira_ticket(
     approver_name: str | None = None,
     approver_email: str | None = None,
 ) -> dict:
+    """Create a Jira implementation ticket for an approved request.
+
+    When JIRA_MOCK=true, writes a fake ticket key to the DB so the rest of
+    the workflow (JSM linking, attachment sync, comments) can still be tested.
+
+    After creation:
+      - Jira ↔ JSM tickets are linked via Jira issue links.
+      - A cross-reference comment is posted to each ticket.
+      - All stored attachments are synced to both tickets.
+    """
     from app.core.config import get_settings as _get_settings
     from app.core.database import db_session
     from app.models.request import Request
@@ -148,7 +201,9 @@ def task_create_jira_ticket(
 
             req.jira_ticket_key = ticket["key"]
             req.jira_ticket_url = ticket["url"]
-            await db.commit()  # commit before eager tasks read jira_ticket_key
+            # Commit now so subsequent tasks (jsm comment, attachment sync) can
+            # read jira_ticket_key from the DB in eager mode.
+            await db.commit()
             logger.info("Jira ticket %s created for request %s", ticket["key"], request_id)
 
             # Link Jira ↔ JSM tickets so both show each other in Issue Links.
@@ -471,6 +526,8 @@ def task_close_jsm_ticket(self, request_id: str, resolution_comment: str) -> dic
     return _run(_close())
 
 
+# ── Notification tasks ────────────────────────────────────────────────────────
+
 @celery_app.task(
     bind=True,
     name="app.workers.tasks.task_send_status_notification",
@@ -479,6 +536,12 @@ def task_close_jsm_ticket(self, request_id: str, resolution_comment: str) -> dic
     autoretry_for=(Exception,),
 )
 def task_send_status_notification(self, request_id: str) -> None:
+    """Send an email to the requestor reflecting the current request status.
+
+    Each status maps to a dedicated notification method (notify_submitted,
+    notify_approved, etc.) for tailored email copy. A Microsoft Teams
+    notification is also sent to the pod's webhook if one is configured.
+    """
     from app.core.database import db_session
     from app.models.request import Request, RequestStatus
     from app.services.notification_service import NotificationService
@@ -535,6 +598,8 @@ def task_send_status_notification(self, request_id: str) -> None:
     _run(_notify())
 
 
+# ── Polling-based Jira sync (webhook fallback) ────────────────────────────────
+
 @celery_app.task(
     bind=True,
     name="app.workers.tasks.sync_jira_status",
@@ -543,6 +608,12 @@ def task_send_status_notification(self, request_id: str) -> None:
     autoretry_for=(Exception,),
 )
 def sync_jira_status(self, request_id: str) -> dict:
+    """Poll Jira for the current ticket status and update the relay request.
+
+    This is a fallback for environments where the Jira webhook is unavailable.
+    Note: this mapping includes "To Do" → Approved, unlike the webhook handler,
+    because polling runs after the ticket already exists.
+    """
     from app.core.database import db_session
     from app.models.request import AuditLog, Request, RequestStatus
     from app.services.jira_service import JiraService
@@ -591,6 +662,8 @@ def sync_jira_status(self, request_id: str) -> dict:
     autoretry_for=(Exception,),
 )
 def task_send_email(self, to: str, subject: str, body_html: str) -> None:
+    """Low-level task to send a raw HTML email. Prefer the specific notify_* tasks
+    for status-driven emails — this is used for one-off or ad-hoc messages."""
     from app.services.notification_service import NotificationService
 
     async def _send():

@@ -1,4 +1,18 @@
+/**
+ * constants.ts — App-wide enumerations, display labels, Tailwind color maps,
+ * workflow transition rules, and upload constraints.
+ *
+ * Color map convention (used for status/pod/priority/type badges and filter pills):
+ *   *_COLORS        — soft -100 bg / -700 text / -200 border  → resting/inactive state
+ *   *_ACTIVE_COLORS — bold -300 bg / -900 text / -500 border  → selected filter pill state
+ *
+ * Both maps are needed because a single Tailwind class set can't be toggled
+ * safely with opacity alone — dark text on a light chip would become unreadable.
+ */
+
 import type { Pod, Region, RequestStatus, RequestType, Role, Priority } from './types'
+
+// ── Domain enumerations ───────────────────────────────────────────────────────
 
 export const PODS = ['Charger', 'Driver', 'Revenue', 'Data', 'DevOps', 'Denali'] as const satisfies readonly Pod[]
 
@@ -14,6 +28,9 @@ export const REGION_LABELS: Record<Region, string> = {
   EU: 'Europe',
 }
 
+// Full lifecycle order — used by DashboardPage filter pills and status dropdowns.
+// Note: region was migrated from a single string to string[] in migration 007;
+// REGIONS here reflects the canonical list post-migration.
 export const REQUEST_STATUSES: RequestStatus[] = [
   'Submitted',
   'InReview',
@@ -26,6 +43,9 @@ export const REQUEST_STATUSES: RequestStatus[] = [
   'Closed',
 ]
 
+// ── Display labels ────────────────────────────────────────────────────────────
+// CamelCase enum values need human-readable labels for the UI and CSV export.
+
 export const STATUS_LABELS: Record<RequestStatus, string> = {
   Submitted: 'Submitted',
   InReview: 'In Review',
@@ -37,6 +57,10 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
   Completed: 'Completed',
   Closed: 'Closed',
 }
+
+// ── Badge / pill color maps (inactive) ───────────────────────────────────────
+// Applied when a filter pill is NOT selected, or on read-only status badges.
+// Uses -100 bg + -700 text for low visual weight.
 
 export const STATUS_COLORS: Record<RequestStatus, string> = {
   Submitted: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -72,7 +96,10 @@ export const TYPE_COLORS: Record<RequestType, string> = {
   Defect: 'bg-rose-100 text-rose-700 border-rose-200',
 }
 
-// Darker variants used for the "active/selected" state in filter pills
+// ── Badge / pill color maps (active/selected) ─────────────────────────────────
+// Applied when a filter pill IS selected. Uses -300 bg / -900 text / -500 border
+// to make the selection visually prominent without switching to a different hue.
+
 export const STATUS_ACTIVE_COLORS: Record<RequestStatus, string> = {
   Submitted:    'bg-slate-300 text-slate-900 border-slate-500',
   InReview:     'bg-blue-300 text-blue-900 border-blue-500',
@@ -107,6 +134,16 @@ export const TYPE_ACTIVE_COLORS: Record<RequestType, string> = {
   Defect:  'bg-rose-300 text-rose-900 border-rose-500',
 }
 
+// ── Workflow transition rules ─────────────────────────────────────────────────
+// Defines which target statuses are legal from each source status.
+// Enforced client-side in the UpdateStatus dropdown so reviewers only see
+// valid next steps. The backend also validates these transitions independently.
+//
+// Key flows:
+//   AwaitingInfo → InfoReceived  (requestor responds via /respond/:id)
+//   InfoReceived → InReview | Approved  (reviewer resumes)
+//   Rejected / Closed → []  (terminal states — no further moves)
+
 export const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
   Submitted:    ['InReview', 'AwaitingInfo', 'Approved', 'Rejected'],
   InReview:     ['AwaitingInfo', 'Approved', 'Rejected', 'InProgress'],
@@ -119,8 +156,14 @@ export const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
   Closed:       [],
 }
 
+// ── Role sets ─────────────────────────────────────────────────────────────────
+// Used by useAuth to derive isPM / isReviewer booleans.
+// Admin inherits all permissions by being included in every role set.
+
 export const REVIEWER_ROLES: Role[] = ['PodReviewer', 'ProductManager', 'Admin']
 export const PM_ROLES: Role[] = ['ProductManager', 'Admin']
+
+// ── File upload constraints ───────────────────────────────────────────────────
 
 export const MAX_FILE_SIZE_MB = 25
 export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
@@ -135,6 +178,9 @@ export const ALLOWED_FILE_TYPES = [
   'text/plain',
   'text/csv',
 ]
+
+// ── Pod descriptions ──────────────────────────────────────────────────────────
+// Shown in the submit form to help requestors pick the right product pod.
 
 export const POD_DESCRIPTIONS: Record<Pod, string> = {
   Charger: 'Hardware, firmware, and charger network',

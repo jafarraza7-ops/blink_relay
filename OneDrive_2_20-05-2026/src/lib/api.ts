@@ -1,3 +1,20 @@
+/**
+ * api.ts — Centralized Axios client for all Blink Relay backend calls.
+ *
+ * Architecture note: this module has zero MSAL/auth imports by design.
+ * The token getter is injected at runtime by useAuth (via setTokenGetter),
+ * which keeps this file independently testable and free of browser-auth
+ * side-effects.
+ *
+ * API surface is grouped into five namespaces:
+ *   authApi     — current user identity (/api/auth/me)
+ *   requestsApi — CRUD + listing for BlinkRequest records
+ *   workflowApi — status-transition endpoints (approve, reject, updateStatus)
+ *   threadApi   — per-request message thread + clarification flow
+ *   filesApi    — attachment upload / listing
+ *   respondApi  — public (unauthenticated) response endpoint for requestors
+ */
+
 import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import type {
   ApprovePayload,
@@ -16,12 +33,18 @@ import type {
   User,
 } from './types'
 
-// Token getter is injected by useAuth so api.ts has no direct MSAL dependency
+// ── Token injection ───────────────────────────────────────────────────────────
+
+// Token getter is injected by useAuth so api.ts has no direct MSAL dependency.
+// In SKIP_AUTH mode useAuth injects a static dev token instead.
 let _tokenGetter: (() => Promise<string | null>) | null = null
 
+/** Called once by useAuth on mount to wire up Bearer-token acquisition. */
 export function setTokenGetter(getter: () => Promise<string | null>): void {
   _tokenGetter = getter
 }
+
+// ── Axios instance ────────────────────────────────────────────────────────────
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL as string | undefined ?? 'http://localhost:8000',
@@ -29,6 +52,9 @@ const apiClient: AxiosInstance = axios.create({
   timeout: 30_000,
 })
 
+// Attach the Bearer token to every request via the injected getter.
+// acquireTokenSilent will refresh the MSAL token automatically; if it can't,
+// it falls back to a redirect so the user re-authenticates.
 apiClient.interceptors.request.use(async (config) => {
   if (_tokenGetter) {
     const token = await _tokenGetter()
@@ -42,7 +68,8 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (res) => res,
   (error) => {
-    // Normalize error messages for UI consumption
+    // Normalize FastAPI's `detail` field and generic messages into a single
+    // Error so callers only need to handle one shape.
     const message: string =
       error.response?.data?.detail ??
       error.response?.data?.message ??
@@ -65,6 +92,12 @@ export const requestsApi = {
   create: (payload: RequestCreate): Promise<BlinkRequest> =>
     apiClient.post<BlinkRequest>('/api/requests', payload).then((r) => r.data),
 
+  /**
+   * Fetch a paginated list of all requests (reviewer/PM view).
+   * Only scalar filters are serialized here — multi-value filtering
+   * (status[], pod[], priority[], type[]) is handled client-side in
+   * DashboardPage after fetching page_size=500.
+   */
   list: (filters: RequestFilters = {}): Promise<RequestListResponse> => {
     const params: Record<string, string | number> = {}
     if (filters.pod) params.pod = filters.pod
@@ -77,6 +110,7 @@ export const requestsApi = {
     return apiClient.get<RequestListResponse>('/api/requests', { params }).then((r) => r.data)
   },
 
+  /** Requestor-scoped list — only returns requests owned by the current user. */
   listMine: (filters: RequestFilters = {}): Promise<RequestListResponse> => {
     const params: Record<string, string | number> = {}
     if (filters.status) params.status = filters.status
@@ -88,6 +122,12 @@ export const requestsApi = {
     return apiClient.get<RequestListResponse>('/api/requests/mine', { params }).then((r) => r.data)
   },
 
+  /**
+   * Server-side CSV export endpoint — used as a fallback / alternative.
+   * Note: DashboardPage generates its CSV client-side from the already-filtered
+   * array so that multi-select filters (which can't be passed as single query
+   * params) are correctly reflected in the download.
+   */
   exportCsv: (filters: Omit<RequestFilters, 'page' | 'page_size'> = {}): Promise<Blob> => {
     const params: Record<string, string> = {}
     if (filters.pod) params.pod = filters.pod
@@ -108,6 +148,10 @@ export const requestsApi = {
 }
 
 // ── Workflow ──────────────────────────────────────────────────────────────────
+// Dedicated endpoints for status transitions so the backend can apply
+// validation rules, trigger email notifications, and create JSM/Jira
+// tickets as side-effects — PATCH /status is for generic moves, while
+// /approve and /reject have their own endpoints for richer payloads.
 
 export const workflowApi = {
   updateStatus: (id: string, payload: StatusUpdatePayload): Promise<{ id: string; status: string }> =>
@@ -116,6 +160,7 @@ export const workflowApi = {
   approve: (id: string, payload: ApprovePayload = {}): Promise<{ id: string; status: string }> =>
     apiClient.post(`/api/requests/${id}/approve`, payload).then((r) => r.data),
 
+  /** Uses /reject (not /status) so the backend can fire the rejection email notification. */
   reject: (id: string, payload: RejectPayload): Promise<{ id: string; status: string }> =>
     apiClient.post(`/api/requests/${id}/reject`, payload).then((r) => r.data),
 }
@@ -158,6 +203,8 @@ export const filesApi = {
 }
 
 // ── Respond (public — no auth required) ──────────────────────────────────────
+// Requestors follow an emailed link to /respond/:id without logging in.
+// The backend validates the request belongs to their email; no Bearer token needed.
 
 export const respondApi = {
   respond: (requestId: string, payload: RespondPayload): Promise<{ id: string; status: string }> =>

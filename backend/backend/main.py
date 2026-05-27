@@ -1,3 +1,13 @@
+"""
+main.py — FastAPI application entry point for Blink Relay.
+
+Responsibilities:
+- Runs Alembic migrations on every startup (idempotent; safe for rolling deploys).
+- Verifies DB and Redis connectivity before accepting traffic.
+- Registers all API routers under the /api prefix.
+- Configures CORS to allow the React frontend (and localhost dev server).
+- Disables Swagger/ReDoc in non-local environments to avoid exposing internals.
+"""
 from __future__ import annotations
 
 import logging
@@ -24,6 +34,7 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Manage startup and shutdown tasks for the FastAPI app."""
     # ── Startup ──────────────────────────────────────────────────────────────
     setup_insights()
     logger.info("Starting Blink Relay API v%s [%s]", settings.APP_VERSION, settings.ENVIRONMENT)

@@ -1,3 +1,23 @@
+/**
+ * MyRequestsPage.tsx — Requestor's personal view of their submitted requests.
+ *
+ * Visible to: all authenticated users (Requestor role).
+ *
+ * Filtering strategy mirrors DashboardPage: fetches page_size=500 then
+ * applies multi-select filters client-side for the same reason (backend
+ * query params are single-value only).
+ *
+ * Key UX features:
+ *   - Empty state with CTA when the user has no requests at all
+ *   - Action-needed banner when one or more requests are AwaitingInfo;
+ *     tapping "Review now" either navigates directly (single request) or
+ *     sets the status filter to AwaitingInfo (multiple)
+ *   - Stat cards derived from the full allItems list, not separate queries,
+ *     because the requestor's total volume is typically small
+ *   - "Closed" is intentionally omitted from STATUS_OPTIONS to keep the
+ *     filter UI focused on actionable states
+ */
+
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
@@ -23,14 +43,20 @@ import {
 } from '@/lib/constants'
 import type { BlinkRequest, Priority, RequestStatus, RequestType } from '@/lib/types'
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const REFRESH_MS = 30_000
 
+// "Closed" is omitted — it's a terminal archive state the requestor doesn't need to filter on
 const STATUS_OPTIONS: RequestStatus[] = [
   'Submitted', 'InReview', 'AwaitingInfo', 'InfoReceived',
   'Approved', 'InProgress', 'Completed', 'Rejected',
 ]
 
+// Statuses that count toward the "Pending review" stat card
 const PENDING_STATUSES: RequestStatus[] = ['Submitted', 'InReview', 'AwaitingInfo', 'InfoReceived']
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 interface StatCardProps {
   icon: React.ElementType
@@ -39,6 +65,7 @@ interface StatCardProps {
   color: string
 }
 
+/** Single KPI tile. Unlike DashboardPage, value is always a number (derived locally). */
 function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
   return (
     <Card>
@@ -55,17 +82,28 @@ function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
   )
 }
 
+/**
+ * Immutable toggle — same helper as DashboardPage; duplicated here to keep
+ * each page self-contained (no shared utils dependency for a one-liner).
+ */
 function toggle<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]
 }
 
+// ── Page component ────────────────────────────────────────────────────────────
+
+/** Requestor's personal request tracker with inline stat cards and action banners. */
 export function MyRequestsPage() {
+  // ── Filter state ────────────────────────────────────────────────────────────
   const [statuses, setStatuses] = useState<RequestStatus[]>([])
   const [priorities, setPriorities] = useState<Priority[]>([])
   const [types, setTypes] = useState<RequestType[]>([])
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
 
+  // ── Data fetching ───────────────────────────────────────────────────────────
+  // page_size=500 for the same reason as DashboardPage: client-side multi-select.
+  // Search is passed server-side (full-text); other filters applied locally.
   const { data, isLoading, isError } = useMyRequests(
     { page: 1, page_size: 500, search: search || undefined },
     { refetchInterval: REFRESH_MS },
@@ -73,17 +111,23 @@ export function MyRequestsPage() {
 
   const allItems: BlinkRequest[] = data?.items ?? []
 
+  // ── Derived stats ───────────────────────────────────────────────────────────
+  // Computed from allItems rather than separate queries because a requestor's
+  // volume is small and we'd rather avoid extra round-trips.
   const stats = useMemo(() => {
     const counts = { total: allItems.length, pending: 0, awaitingInfo: 0, approved: 0, rejected: 0 }
     for (const r of allItems) {
       if (PENDING_STATUSES.includes(r.status)) counts.pending++
       if (r.status === 'AwaitingInfo') counts.awaitingInfo++
+      // "Approved" card intentionally covers InProgress + Completed too —
+      // the requestor just needs to know whether it's moving forward
       if (['Approved', 'InProgress', 'Completed'].includes(r.status)) counts.approved++
       if (r.status === 'Rejected') counts.rejected++
     }
     return counts
   }, [allItems])
 
+  // ── Client-side filtering ───────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let items = allItems
     if (statuses.length > 0) items = items.filter((r) => statuses.includes(r.status))
@@ -175,6 +219,8 @@ export function MyRequestsPage() {
               size="sm"
               onClick={() => {
                 const awaitingItems = allItems.filter((r) => r.status === 'AwaitingInfo')
+                // Single awaiting request → navigate directly to the respond page.
+                // Multiple → set the status filter so the user can see them all.
                 if (awaitingItems.length === 1) {
                   navigate(`/respond/${awaitingItems[0].id}`)
                 } else {
