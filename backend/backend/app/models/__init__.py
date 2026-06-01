@@ -10,6 +10,7 @@ from app.models.request import (
     Priority,
     User,
 )
+from app.models.auth import LoginToken
 
 __all__ = [
     "ALLOWED_TRANSITIONS",
@@ -22,4 +23,5 @@ __all__ = [
     "RequestType",
     "Priority",
     "User",
+    "LoginToken",
 ]

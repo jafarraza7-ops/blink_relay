@@ -8,6 +8,9 @@ import { ConfirmPage } from '@/pages/ConfirmPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { MyRequestsPage } from '@/pages/MyRequestsPage'
 import { ReviewPage } from '@/pages/ReviewPage'
+import { EmailLoginPage } from "@/pages/EmailLoginPage"
+import { VerifyTokenPage } from "@/pages/VerifyTokenPage"
+import { CheckEmailPage } from "@/pages/CheckEmailPage"
 import { RespondPage } from '@/pages/RespondPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
@@ -52,6 +55,9 @@ export function AppRouter() {
     <Routes>
       {/* Fully public — no auth required */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/email/request" element={<EmailLoginPage />} />
+      <Route path="/auth/email/callback" element={<VerifyTokenPage />} />
+      <Route path="/auth/email/check-email" element={<CheckEmailPage />} />
       <Route path="/respond/:id" element={<RespondPage />} />
 
       {/* Authenticated — wrapped in AppShell */}

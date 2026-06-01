@@ -118,17 +118,51 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     # oid is the Entra object ID — the stable, tenant-scoped identifier used to
     # correlate all activity back to a single user across email changes.
-    oid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, index=True)
+    oid: Mapped[Optional[str]] = mapped_column(String(36), unique=True, nullable=True, index=True)
     email: Mapped[str] = mapped_column(String(254), nullable=False)
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     roles: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    auth_source: Mapped[Optional[str]] = mapped_column(String(20), default="azure_ad", nullable=True)
+    last_login_method: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
+
+
+
+class EmailLoginToken(Base):
+    """Secure, one-time-use tokens for email-based authentication.
+    
+    Tokens are hashed before storage to prevent disclosure if the database
+    is compromised. Only the hash is stored; the plaintext token is sent
+    to the user and never persisted.
+    """
+    __tablename__ = "email_login_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(254), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
+    is_used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    used_ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    used_user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    
+    request_ip_address: Mapped[str] = mapped_column(String(45), nullable=False)
+    invalidation_reason: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    invalidated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id])
 
 class Request(Base):
     """Core intake record. One row per stakeholder submission."""

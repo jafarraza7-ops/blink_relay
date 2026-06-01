@@ -53,6 +53,25 @@ export function LoginPage() {
               </>
             )}
           </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-muted" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          <Button
+            asChild
+            variant="outline"
+            className="w-full gap-2"
+          >
+            <a href="/email-login">
+              Sign in with Email
+            </a>
+          </Button>
         </div>
 
         <p className="text-xs text-muted-foreground">

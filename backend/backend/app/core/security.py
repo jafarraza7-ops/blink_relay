@@ -224,3 +224,40 @@ def require_role(*allowed_roles: Role):
         )
 
     return _dependency
+
+
+def generate_jwt_token(user) -> str:
+    """Generate a JWT token for email-authenticated users.
+    
+    Tokens expire in 2 hours. Used only for email login, not Azure AD users.
+    
+    Args:
+        user: User model instance from database
+        
+    Returns:
+        JWT bearer token string
+    """
+    from datetime import datetime, timedelta, timezone
+    from app.core.config import get_settings
+    
+    settings = get_settings()
+    expiration = datetime.now(timezone.utc) + timedelta(hours=2)
+    
+    payload = {
+        "sub": str(user.id),  # Use user.id instead of oid for email users
+        "oid": user.oid,      # May be None for email-only users
+        "email": user.email,
+        "name": user.display_name,
+        "roles": user.roles,
+        "tid": "email-auth",  # Placeholder for email users
+        "auth_source": user.auth_source,
+        "exp": expiration,
+        "iat": datetime.now(timezone.utc),
+    }
+    
+    # Use a fixed secret for email JWTs (in production, use a proper secret manager)
+    secret_key = settings.AZURE_CLIENT_SECRET or "dev-email-jwt-secret-key"
+    
+    token = jwt.encode(payload, secret_key, algorithm="HS256")
+    
+    return token

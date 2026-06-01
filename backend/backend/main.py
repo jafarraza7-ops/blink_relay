@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.api import auth, files, health, requests, thread, users, webhook, workflow
+from app.api import auth, email_auth, files, health, requests, thread, users, webhook, workflow
 from app.core.config import get_settings
 from app.core.database import engine
 from app.core.insights import setup_insights
@@ -100,6 +100,7 @@ app.add_middleware(
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(health.router)                          # /health (no prefix)
 app.include_router(auth.router,     prefix="/api")         # /api/auth/me
+app.include_router(email_auth.router,  prefix="/api")         # /api/auth/email/*
 app.include_router(requests.router, prefix="/api")         # /api/requests
 app.include_router(users.router,    prefix="/api")         # /api/users
 app.include_router(workflow.router, prefix="/api")         # /api/requests/{id}/...
