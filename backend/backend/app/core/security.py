@@ -148,9 +148,9 @@ _MOCK_USERS: dict[str, UserClaims] = {
         tid="test-tenant",
     ),
     "requestor": UserClaims(
-        oid="smoke-test-requestor",
-        email="requestor_dev@ethereal.email",
-        name="Dev Requestor",
+        oid="jraza-requestor-oid",
+        email="jraza.requestor@blinkcharging.com",
+        name="Jafar Raza (Requestor)",
         roles=[Role.REQUESTOR],
         tid="test-tenant",
     ),

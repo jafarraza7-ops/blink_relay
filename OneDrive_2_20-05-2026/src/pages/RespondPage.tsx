@@ -10,7 +10,7 @@ import { TypeBadge } from '@/components/request/TypeBadge'
 import { PriorityBadge } from '@/components/request/PriorityBadge'
 import { FileAttachment } from '@/components/request/FileAttachment'
 import { EditRequestDialog } from '@/components/request/EditRequestDialog'
-import { TruncatedBody } from '@/components/request/MessageThread'
+import { TruncatedBody, MessageThread } from '@/components/request/MessageThread'
 import { useAuth } from '@/hooks/useAuth'
 import { useRequest, useRespondToRequest } from '@/hooks/useRequests'
 import { useThread } from '@/hooks/useThread'
@@ -228,6 +228,16 @@ export function RespondPage() {
               : 'No action is currently required. You will be notified of any updates by email.'}
           </div>
         )}
+
+        {/* Conversation thread */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Conversation</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MessageThread requestId={req.id} internalOnly={false} />
+          </CardContent>
+        </Card>
 
         {/* Attachments */}
         <Card>

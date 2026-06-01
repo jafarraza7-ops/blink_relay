@@ -229,6 +229,8 @@ class Message(Base):
     )
     # JSM comment ID once synced — null until the comment is mirrored to JSM
     jsm_comment_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # Array of mentioned user OIDs (e.g. ["oid-123", "oid-456"])
+    mentions: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

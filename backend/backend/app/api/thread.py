@@ -29,6 +29,7 @@ _REVIEWER_ROLES = {Role.POD_REVIEWER, Role.PRODUCT_MANAGER, Role.ADMIN}
 class MessageCreate(BaseModel):
     body: str
     is_internal: bool = False
+    mentions: list[str] = []  # List of mentioned user OIDs
 
 
 class ClarifyPayload(BaseModel):
@@ -43,6 +44,7 @@ class MessageResponse(BaseModel):
     body: str
     is_internal: bool
     message_type: str
+    mentions: list[str] = []
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -95,6 +97,7 @@ async def post_message(
         author_name=user.name,
         body=payload.body,
         is_internal=is_internal,
+        mentions=payload.mentions,
         message_type=MessageType.COMMENT,
     )
     db.add(msg)
@@ -104,6 +107,18 @@ async def post_message(
 
     jsm_body = f"**{user.name}** ({user.email}):\n\n{payload.body}"
     task_jsm_add_comment.delay(str(request_id), jsm_body, not is_internal)
+
+    # Notify mentioned users if any
+    if payload.mentions:
+        from app.services.mention_service import notify_mentioned_users
+        await notify_mentioned_users(
+            request_id=request_id,
+            message_id=msg.id,
+            mentioned_oids=payload.mentions,
+            author_name=user.name,
+            body_preview=payload.body[:100],
+            db=db,
+        )
 
     return MessageResponse.model_validate(msg)
 

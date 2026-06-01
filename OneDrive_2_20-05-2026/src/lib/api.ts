@@ -47,7 +47,7 @@ export function setTokenGetter(getter: () => Promise<string | null>): void {
 // ── Axios instance ────────────────────────────────────────────────────────────
 
 const apiClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL as string | undefined ?? 'http://localhost:8000',
+  baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 30_000,
 })
@@ -83,14 +83,14 @@ apiClient.interceptors.response.use(
 
 export const authApi = {
   me: (): Promise<User> =>
-    apiClient.get<User>('/api/auth/me').then((r) => r.data),
+    apiClient.get<User>('/auth/me').then((r) => r.data),
 }
 
 // ── Requests ──────────────────────────────────────────────────────────────────
 
 export const requestsApi = {
   create: (payload: RequestCreate): Promise<BlinkRequest> =>
-    apiClient.post<BlinkRequest>('/api/requests', payload).then((r) => r.data),
+    apiClient.post<BlinkRequest>('/requests', payload).then((r) => r.data),
 
   /**
    * Fetch a paginated list of all requests (reviewer/PM view).
@@ -107,7 +107,7 @@ export const requestsApi = {
     if (filters.search) params.search = filters.search
     if (filters.page) params.page = filters.page
     if (filters.page_size) params.page_size = filters.page_size
-    return apiClient.get<RequestListResponse>('/api/requests', { params }).then((r) => r.data)
+    return apiClient.get<RequestListResponse>('/requests', { params }).then((r) => r.data)
   },
 
   /** Requestor-scoped list — only returns requests owned by the current user. */
@@ -119,7 +119,7 @@ export const requestsApi = {
     if (filters.search) params.search = filters.search
     if (filters.page) params.page = filters.page
     if (filters.page_size) params.page_size = filters.page_size
-    return apiClient.get<RequestListResponse>('/api/requests/mine', { params }).then((r) => r.data)
+    return apiClient.get<RequestListResponse>('/requests/mine', { params }).then((r) => r.data)
   },
 
   /**
@@ -136,15 +136,15 @@ export const requestsApi = {
     if (filters.priority) params.priority = filters.priority
     if (filters.search) params.search = filters.search
     return apiClient
-      .get('/api/requests/export', { params, responseType: 'blob' })
+      .get('requests/export', { params, responseType: 'blob' })
       .then((r) => r.data as Blob)
   },
 
   get: (id: string): Promise<BlinkRequest> =>
-    apiClient.get<BlinkRequest>(`/api/requests/${id}`).then((r) => r.data),
+    apiClient.get<BlinkRequest>(`/requests/${id}`).then((r) => r.data),
 
   update: (id: string, payload: RequestUpdate): Promise<BlinkRequest> =>
-    apiClient.patch<BlinkRequest>(`/api/requests/${id}`, payload).then((r) => r.data),
+    apiClient.patch<BlinkRequest>(`/requests/${id}`, payload).then((r) => r.data),
 }
 
 // ── Workflow ──────────────────────────────────────────────────────────────────
@@ -155,34 +155,34 @@ export const requestsApi = {
 
 export const workflowApi = {
   updateStatus: (id: string, payload: StatusUpdatePayload): Promise<{ id: string; status: string }> =>
-    apiClient.patch(`/api/requests/${id}/status`, payload).then((r) => r.data),
+    apiClient.patch(`/requests/${id}/status`, payload).then((r) => r.data),
 
   approve: (id: string, payload: ApprovePayload = {}): Promise<{ id: string; status: string }> =>
-    apiClient.post(`/api/requests/${id}/approve`, payload).then((r) => r.data),
+    apiClient.post(`/requests/${id}/approve`, payload).then((r) => r.data),
 
   /** Uses /reject (not /status) so the backend can fire the rejection email notification. */
   reject: (id: string, payload: RejectPayload): Promise<{ id: string; status: string }> =>
-    apiClient.post(`/api/requests/${id}/reject`, payload).then((r) => r.data),
+    apiClient.post(`/requests/${id}/reject`, payload).then((r) => r.data),
 }
 
 // ── Thread ────────────────────────────────────────────────────────────────────
 
 export const threadApi = {
   list: (requestId: string): Promise<Message[]> =>
-    apiClient.get<Message[]>(`/api/requests/${requestId}/messages`).then((r) => r.data),
+    apiClient.get<Message[]>(`/requests/${requestId}/messages`).then((r) => r.data),
 
   post: (requestId: string, payload: MessageCreate): Promise<Message> =>
-    apiClient.post<Message>(`/api/requests/${requestId}/messages`, payload).then((r) => r.data),
+    apiClient.post<Message>(`/requests/${requestId}/messages`, payload).then((r) => r.data),
 
   clarify: (requestId: string, payload: ClarifyPayload): Promise<Message> =>
-    apiClient.post<Message>(`/api/requests/${requestId}/clarify`, payload).then((r) => r.data),
+    apiClient.post<Message>(`/requests/${requestId}/clarify`, payload).then((r) => r.data),
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
 
 export const filesApi = {
   list: (requestId: string): Promise<Attachment[]> =>
-    apiClient.get<Attachment[]>(`/api/requests/${requestId}/files`).then((r) => r.data),
+    apiClient.get<Attachment[]>(`/requests/${requestId}/files`).then((r) => r.data),
 
   upload: (requestId: string, file: File): Promise<Attachment> =>
     filesApi.uploadMany(requestId, [file]).then((arr) => arr[0]),
@@ -195,20 +195,30 @@ export const filesApi = {
       formData.append('files', file)
     }
     return apiClient
-      .post<Attachment[]>(`/api/requests/${requestId}/files`, formData, {
+      .post<Attachment[]>(`/requests/${requestId}/files`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       } as AxiosRequestConfig)
       .then((r) => r.data)
   },
 }
 
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+
+export const usersApi = {
+  list: (q?: string): Promise<Array<{ oid: string; email: string; display_name: string }>> => {
+    const params: Record<string, string> = {}
+    if (q) params.q = q
+    return apiClient.get('/users', { params }).then((r) => r.data)
+  },
+}
 // ── Respond (public — no auth required) ──────────────────────────────────────
 // Requestors follow an emailed link to /respond/:id without logging in.
 // The backend validates the request belongs to their email; no Bearer token needed.
 
 export const respondApi = {
   respond: (requestId: string, payload: RespondPayload): Promise<{ id: string; status: string }> =>
-    apiClient.post(`/api/requests/${requestId}/respond`, payload).then((r) => r.data),
+    apiClient.post(`/requests/${requestId}/respond`, payload).then((r) => r.data),
 }
 
 export default apiClient

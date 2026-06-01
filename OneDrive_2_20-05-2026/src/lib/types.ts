@@ -87,12 +87,14 @@ export interface Message {
   body: string
   is_internal: boolean
   message_type: MessageType
+  mentions: string[] // Array of mentioned user OIDs
   created_at: string
 }
 
 export interface MessageCreate {
   body: string
   is_internal?: boolean
+  mentions?: string[] // Array of mentioned user OIDs
 }
 
 export interface ClarifyPayload {

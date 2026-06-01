@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Send } from 'lucide-react'
 
 const BODY_LIMIT = 200
@@ -27,10 +27,17 @@ import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { usersApi } from '@/lib/api'
 
 interface MessageThreadProps {
   requestId: string
   internalOnly?: boolean
+}
+
+interface UserSuggestion {
+  oid: string
+  email: string
+  display_name: string
 }
 
 function getInitials(name: string): string {
@@ -43,14 +50,74 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
   const { user } = useAuth()
   const { toast } = useToast()
   const [body, setBody] = useState('')
+  const [mentions, setMentions] = useState<string[]>([])
+  const [suggestions, setSuggestions] = useState<UserSuggestion[]>([])
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const getMentionContext = (text: string, cursorPos: number) => {
+    const beforeCursor = text.substring(0, cursorPos)
+    const lastAtIndex = beforeCursor.lastIndexOf('@')
+
+    if (lastAtIndex === -1) return null
+
+    const afterAt = beforeCursor.substring(lastAtIndex + 1)
+    if (afterAt.includes(' ')) return null
+
+    return { query: afterAt, atIndex: lastAtIndex }
+  }
+
+  const handleBodyChange = async (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newBody = e.target.value
+    const cursorPos = e.target.selectionStart
+    setBody(newBody)
+
+    const context = getMentionContext(newBody, cursorPos)
+    if (context && context.query.length > 0) {
+      setMentionQuery(context.query)
+      setShowSuggestions(true)
+      try {
+        const users = await usersApi.list(context.query)
+        const filtered = users.filter(u => !mentions.includes(u.oid))
+        setSuggestions(filtered)
+      } catch (err) {
+        setSuggestions([])
+      }
+    } else {
+      setShowSuggestions(false)
+      setSuggestions([])
+    }
+  }
+
+  const handleUserSelect = (user: UserSuggestion) => {
+    const cursorPos = textareaRef.current?.selectionStart || 0
+    const beforeCursor = body.substring(0, cursorPos)
+    const lastAtIndex = beforeCursor.lastIndexOf('@')
+
+    if (lastAtIndex === -1) return
+
+    const beforeAt = body.substring(0, lastAtIndex)
+    const afterCursor = body.substring(cursorPos)
+
+    const newBody = beforeAt + '@' + afterCursor
+    setBody(newBody)
+    setMentions([...mentions, user.oid])
+    setShowSuggestions(false)
+    setSuggestions([])
+    setMentionQuery('')
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!body.trim()) return
     postMessage(
-      { body: body.trim(), is_internal: internalOnly },
+      { body: body.trim(), is_internal: internalOnly, mentions },
       {
-        onSuccess: () => setBody(''),
+        onSuccess: () => {
+          setBody('')
+          setMentions([])
+        },
         onError: (err) => toast({ title: 'Failed to send message', description: err.message, variant: 'destructive' }),
       }
     )
@@ -62,7 +129,6 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Messages */}
       <div className="space-y-4">
         {messages.length === 0 && (
           <p className="text-center text-sm text-muted-foreground py-6">No messages yet</p>
@@ -119,12 +185,24 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
                 )}>
                   <TruncatedBody text={msg.body} />
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
                   <span>{msg.author_name}</span>
                   {isClarificationQ && <span className="rounded bg-blue-100 px-1 text-blue-700">Clarification Request</span>}
                   {isClarificationR && <span className="rounded bg-teal-100 px-1 text-teal-700">Clarification Response</span>}
                   {msg.is_internal && !isClarificationQ && !isClarificationR && (
                     <span className="rounded bg-amber-100 px-1 text-amber-700">Internal</span>
+                  )}
+                  {msg.mentions && msg.mentions.length > 0 && (
+                    <>
+                      <span>·</span>
+                      <div className="flex gap-0.5 flex-wrap">
+                        {msg.mentions.map((oid) => (
+                          <span key={oid} className="rounded bg-blue-50 px-1 text-blue-700">
+                            @{oid.slice(0, 8)}
+                          </span>
+                        ))}
+                      </div>
+                    </>
                   )}
                   <span>·</span>
                   <span>{formatDateTime(msg.created_at)}</span>
@@ -135,19 +213,58 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
         })}
       </div>
 
-      {/* Compose */}
       <form onSubmit={handleSubmit} className="space-y-2 border-t pt-4">
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Write a message…"
-          rows={3}
-          className="resize-none"
-        />
-        <div className="flex items-center justify-between">
-          {internalOnly && (
-            <span className="text-xs text-muted-foreground">Internal note — not visible to requestor</span>
+        <div className="relative">
+          <Textarea
+            ref={textareaRef}
+            value={body}
+            onChange={handleBodyChange}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            placeholder="Write a message… (Use @username to mention someone)"
+            rows={3}
+            className="resize-none"
+          />
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute bottom-full left-0 right-0 mb-1 border border-muted-foreground/30 rounded-md bg-white shadow-lg z-10">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.oid}
+                  type="button"
+                  onClick={() => handleUserSelect(suggestion)}
+                  className="w-full text-left px-3 py-2 hover:bg-muted text-sm border-b last:border-b-0 flex flex-col gap-0.5"
+                >
+                  <span className="font-medium">{suggestion.display_name}</span>
+                  <span className="text-xs text-muted-foreground">{suggestion.email}</span>
+                </button>
+              ))}
+            </div>
           )}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {internalOnly && (
+              <span className="text-xs text-muted-foreground">Internal note — not visible to requestor</span>
+            )}
+            {mentions.length > 0 && (
+              <div className="flex gap-1">
+                {mentions.map((oid) => (
+                  <span
+                    key={oid}
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-700"
+                  >
+                    @{oid.slice(0, 8)}
+                    <button
+                      type="button"
+                      onClick={() => setMentions(mentions.filter((m) => m !== oid))}
+                      className="hover:text-blue-900"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
           <Button type="submit" size="sm" disabled={!body.trim() || isPending} className="ml-auto">
             <Send className="mr-2 h-4 w-4" />
             Send
