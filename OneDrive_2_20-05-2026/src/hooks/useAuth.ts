@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from 'react'
 import { useMsal, useIsAuthenticated } from '@azure/msal-react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { InteractionStatus } from '@azure/msal-browser'
 import { authApi, setTokenGetter } from '@/lib/api'
 import { loginRequest } from '@/lib/msalConfig'
@@ -23,7 +23,8 @@ export function useAuth() {
   const { instance, accounts, inProgress } = useMsal()
   const msalAuthenticated = useIsAuthenticated()
   const msalLoading = inProgress !== InteractionStatus.None
-  
+  const queryClient = useQueryClient()
+
   const [emailUser, setEmailUser] = useState<User | null>(() => {
     const stored = localStorage.getItem('user')
     return stored ? JSON.parse(stored) : null
@@ -85,21 +86,21 @@ export function useAuth() {
   const logout = () => {
     const isEmailAuth = !!localStorage.getItem('auth_token')
 
+    // Clear all cached auth data
+    queryClient.removeQueries({ queryKey: ['auth'] })
+
     // Clear email auth
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user')
     setEmailUser(null)
 
     // Redirect based on auth method
-    if (isEmailAuth) {
-      // Email user: redirect to login page
-      window.location.href = '/'
-    } else if (!SKIP_AUTH) {
-      // MSAL user: redirect through Azure logout
-      instance.logoutRedirect({ postLogoutRedirectUri: window.location.origin })
+    if (isEmailAuth || SKIP_AUTH) {
+      // Email user or dev mode: redirect to login page
+      window.location.href = '/login'
     } else {
-      // Dev mode: just redirect
-      window.location.href = '/'
+      // MSAL user: redirect through Azure logout
+      instance.logoutRedirect({ postLogoutRedirectUri: `${window.location.origin}/login` })
     }
   }
 
