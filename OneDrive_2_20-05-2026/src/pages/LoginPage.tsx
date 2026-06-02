@@ -68,7 +68,7 @@ export function LoginPage() {
             variant="outline"
             className="w-full gap-2"
           >
-            <a href="/email-login">
+            <a href="/auth/email/request">
               Sign in with Email
             </a>
           </Button>
