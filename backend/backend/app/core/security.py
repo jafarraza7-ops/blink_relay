@@ -173,7 +173,15 @@ def get_current_user(
     if not credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    claims = validate_token(credentials.credentials)
+    # Check if this is an email JWT by trying to decode without verification
+    try:
+        unverified = jwt.decode(credentials.credentials, options={"verify_signature": False})
+        if unverified.get("tid") == "email-auth" or unverified.get("auth_source") == "email":
+            claims = validate_email_jwt(credentials.credentials)
+        else:
+            claims = validate_token(credentials.credentials)
+    except:
+        claims = validate_token(credentials.credentials)
 
     # Entra ID surfaces group memberships as app roles when configured in the
     # app registration manifest under "appRoles". The claim name is "roles".
@@ -261,3 +269,25 @@ def generate_jwt_token(user) -> str:
     token = jwt.encode(payload, secret_key, algorithm="HS256")
     
     return token
+
+
+def validate_email_jwt(token: str) -> dict:
+    """Validate an email (HS256) JWT token."""
+    from datetime import datetime, timezone
+    
+    secret = settings.AZURE_CLIENT_SECRET or "dev-email-jwt-secret-key"
+    try:
+        claims = jwt.decode(
+            token,
+            secret,
+            algorithms=["HS256"],
+            options={"verify_exp": True},
+        )
+        return claims
+    except JWTError as exc:
+        logger.warning("Email JWT validation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
