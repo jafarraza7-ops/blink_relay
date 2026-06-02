@@ -62,7 +62,7 @@ class Role(StrEnum):
 
 
 class UserClaims(BaseModel):
-    oid: str           # Entra object ID — stable user identifier
+    oid: Optional[str] # Entra object ID — stable user identifier (None for email users)
     email: str
     name: str
     roles: list[str]
@@ -173,15 +173,25 @@ def get_current_user(
     if not credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    # Check if this is an email JWT by trying to decode without verification
+    token = credentials.credentials
+    logger.debug("Validating token (first 20 chars): %s...", token[:20] if len(token) > 20 else token)
+
+    # Try email JWT (HS256) first, then fall back to Azure AD (RS256)
     try:
-        unverified = jwt.decode(credentials.credentials, options={"verify_signature": False})
-        if unverified.get("tid") == "email-auth" or unverified.get("auth_source") == "email":
-            claims = validate_email_jwt(credentials.credentials)
-        else:
-            claims = validate_token(credentials.credentials)
-    except:
-        claims = validate_token(credentials.credentials)
+        claims = validate_email_jwt(token)
+        logger.debug("Token validated as email JWT")
+    except JWTError as e:
+        logger.debug("Email JWT validation failed (%s), trying Azure AD", str(e))
+        try:
+            claims = validate_token(token)
+            logger.debug("Token validated as Azure AD JWT")
+        except Exception as exc:
+            logger.warning("All token validations failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     # Entra ID surfaces group memberships as app roles when configured in the
     # app registration manifest under "appRoles". The claim name is "roles".
@@ -194,7 +204,7 @@ def get_current_user(
     email = claims.get("preferred_username") or claims.get("upn") or claims.get("email", "")
 
     return UserClaims(
-        oid=claims["oid"],
+        oid=claims.get("oid"),  # May be None for email users
         email=email,
         name=claims.get("name", email),
         roles=roles,
@@ -236,21 +246,22 @@ def require_role(*allowed_roles: Role):
 
 def generate_jwt_token(user) -> str:
     """Generate a JWT token for email-authenticated users.
-    
+
     Tokens expire in 2 hours. Used only for email login, not Azure AD users.
-    
+
     Args:
         user: User model instance from database
-        
+
     Returns:
         JWT bearer token string
     """
     from datetime import datetime, timedelta, timezone
     from app.core.config import get_settings
-    
+
     settings = get_settings()
-    expiration = datetime.now(timezone.utc) + timedelta(hours=2)
-    
+    now = datetime.now(timezone.utc)
+    expiration = now + timedelta(hours=2)
+
     payload = {
         "sub": str(user.id),  # Use user.id instead of oid for email users
         "oid": user.oid,      # May be None for email-only users
@@ -259,23 +270,27 @@ def generate_jwt_token(user) -> str:
         "roles": user.roles,
         "tid": "email-auth",  # Placeholder for email users
         "auth_source": user.auth_source,
-        "exp": expiration,
-        "iat": datetime.now(timezone.utc),
+        "exp": int(expiration.timestamp()),  # Convert to epoch timestamp
+        "iat": int(now.timestamp()),         # Convert to epoch timestamp
     }
-    
+
     # Use a fixed secret for email JWTs (in production, use a proper secret manager)
     secret_key = settings.AZURE_CLIENT_SECRET or "dev-email-jwt-secret-key"
-    
+
     token = jwt.encode(payload, secret_key, algorithm="HS256")
-    
+
     return token
 
 
 def validate_email_jwt(token: str) -> dict:
     """Validate an email (HS256) JWT token."""
-    from datetime import datetime, timezone
-    
     secret = settings.AZURE_CLIENT_SECRET or "dev-email-jwt-secret-key"
+
+    # Quick check: does it look like a JWT?
+    if not token or token.count(".") != 2:
+        logger.debug("Token is not a valid JWT format (expected 3 parts, got %d)", token.count(".") + 1)
+        raise JWTError("Invalid JWT format")
+
     try:
         claims = jwt.decode(
             token,
@@ -286,8 +301,4 @@ def validate_email_jwt(token: str) -> dict:
         return claims
     except JWTError as exc:
         logger.warning("Email JWT validation failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
+        raise JWTError(str(exc))

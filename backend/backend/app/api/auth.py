@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ router = APIRouter(tags=["auth"])
 
 
 class MeResponse(BaseModel):
-    oid: str
+    oid: Optional[str]  # None for email-authenticated users
     email: str
     name: str
     roles: list[str]
@@ -32,16 +32,21 @@ async def sync_user(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> MeResponse:
     """Upsert the authenticated user record into the local users table."""
-    result = await db.execute(select(User).where(User.oid == user.oid))
-    db_user = result.scalar_one_or_none()
+    from datetime import datetime, timezone
 
-    from sqlalchemy import func
+    # Look up by oid (Azure AD) or email (email auth)
+    if user.oid:
+        result = await db.execute(select(User).where(User.oid == user.oid))
+    else:
+        result = await db.execute(select(User).where(User.email == user.email))
+
+    db_user = result.scalar_one_or_none()
 
     if db_user:
         db_user.email = user.email
         db_user.display_name = user.name
         db_user.roles = user.roles
-        db_user.last_seen_at = func.now()
+        db_user.last_seen_at = datetime.now(timezone.utc)
     else:
         db_user = User(
             oid=user.oid,
