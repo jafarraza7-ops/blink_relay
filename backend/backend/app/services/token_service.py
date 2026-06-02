@@ -118,8 +118,9 @@ async def validate_token(
     if token_record.invalidated_at is not None:
         return None, "Invalid or expired token"
     
-    # Check if expired
-    if datetime.now(timezone.utc) > token_record.expires_at:
+    # Check if expired (convert expires_at to UTC-aware for comparison)
+    expires_at_utc = token_record.expires_at.replace(tzinfo=timezone.utc) if token_record.expires_at.tzinfo is None else token_record.expires_at
+    if datetime.now(timezone.utc) > expires_at_utc:
         token_record.invalidation_reason = "expired"
         token_record.invalidated_at = datetime.now(timezone.utc)
         await db.flush()

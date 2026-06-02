@@ -83,13 +83,24 @@ export function useAuth() {
   }
 
   const logout = () => {
+    const isEmailAuth = !!localStorage.getItem('auth_token')
+
     // Clear email auth
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user')
     setEmailUser(null)
-    
-    // Clear MSAL
-    if (!SKIP_AUTH) instance.logoutRedirect({ postLogoutRedirectUri: window.location.origin })
+
+    // Redirect based on auth method
+    if (isEmailAuth) {
+      // Email user: redirect to login page
+      window.location.href = '/'
+    } else if (!SKIP_AUTH) {
+      // MSAL user: redirect through Azure logout
+      instance.logoutRedirect({ postLogoutRedirectUri: window.location.origin })
+    } else {
+      // Dev mode: just redirect
+      window.location.href = '/'
+    }
   }
 
   // ── Role helpers ────────────────────────────────────────────────────────────

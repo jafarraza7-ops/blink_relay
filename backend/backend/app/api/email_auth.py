@@ -107,10 +107,11 @@ async def verify_token(
     user = await get_or_create_email_user(db, token_record.email)
     
     # Link token to user
+    from datetime import datetime, timezone
     token_record.user_id = user.id
     user.email_verified = True
     user.last_login_method = "email"
-    user.last_seen_at = db.func.now()  # type: ignore
+    user.last_seen_at = datetime.now(timezone.utc)
     
     await db.commit()
     
@@ -197,6 +198,37 @@ async def check_token_status(
     from datetime import datetime, timezone
     if datetime.now(timezone.utc) > token_record.expires_at:
         return TokenStatusResponse(valid=False, reason="Link expired")
-    
+
     # Valid
     return TokenStatusResponse(valid=True, reason=None)
+
+
+@router.post("/dev/get-token", status_code=200)
+async def dev_get_token(
+    payload: EmailLoginRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """DEV ONLY: Generate a test token and return the plaintext for testing.
+
+    This endpoint allows testing the email login flow without an email provider.
+    Remove this endpoint before deploying to production.
+    """
+    from app.core.config import get_settings
+    settings = get_settings()
+
+    if not settings.is_local:
+        raise HTTPException(status_code=403, detail="Not available in production")
+
+    email = payload.email
+    plaintext_token, token_record = await create_login_token(db, email, "127.0.0.1")
+    await db.commit()
+
+    settings = get_settings()
+    callback_url = f"{settings.FRONTEND_URL}/auth/email/callback?token={plaintext_token}"
+
+    return {
+        "email": email,
+        "token": plaintext_token,
+        "callback_url": callback_url,
+        "expires_in_minutes": 15,
+    }
