@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import Role, UserClaims, get_current_user, get_optional_user, require_role
 from app.models.request import (
@@ -54,6 +55,7 @@ from app.workers.tasks import (
     task_notify_pm_clarification_response,
     task_send_status_notification,
 )
+from app.workers.email_tasks import task_send_request_creation_email
 
 router = APIRouter(tags=["requests"])
 
@@ -202,6 +204,20 @@ async def create_request(
         task_send_status_notification.delay(str(req.id))
     except Exception:
         logger.warning("task_send_status_notification raised in eager mode — non-fatal", exc_info=True)
+    try:
+        settings = get_settings()
+        request_url = f"{settings.FRONTEND_URL}/requests/{req.id}"
+        task_send_request_creation_email.delay(
+            submitter_email,
+            req.reference_id,
+            req.title,
+            req.request_type.value,
+            req.priority.value,
+            submitter_name,
+            request_url,
+        )
+    except Exception:
+        logger.warning("task_send_request_creation_email raised in eager mode — non-fatal", exc_info=True)
     # Only trigger AI routing when the submitter couldn't identify the pod.
     # The routing service uses keyword matching to pick the best pod and only
     # updates the request if confidence >= 65%.
