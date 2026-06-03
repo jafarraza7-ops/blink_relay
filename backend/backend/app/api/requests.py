@@ -500,7 +500,7 @@ async def cancel_request(
     except Exception as logger_exc:
         logger.warning(f"Failed to queue JSM comment: {logger_exc}")
 
-    return {"id": str(req.id), "status": str(req.status)}
+    return {"id": str(req.id), "status": req.status.value}
 
 
 @router.patch("/requests/{request_id}", response_model=RequestResponse)
