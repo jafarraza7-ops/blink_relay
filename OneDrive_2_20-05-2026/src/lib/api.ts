@@ -29,6 +29,7 @@ import type {
   RequestListResponse,
   RequestUpdate,
   RespondPayload,
+  SimilarRequest,
   StatusUpdatePayload,
   User,
 } from './types'
@@ -142,6 +143,9 @@ export const requestsApi = {
 
   get: (id: string): Promise<BlinkRequest> =>
     apiClient.get<BlinkRequest>(`/requests/${id}`).then((r) => r.data),
+
+  getSimilar: (id: string, limit: number = 5): Promise<SimilarRequest[]> =>
+    apiClient.get<SimilarRequest[]>(`/requests/${id}/similar`, { params: { limit } }).then((r) => r.data),
 
   update: (id: string, payload: RequestUpdate): Promise<BlinkRequest> =>
     apiClient.patch<BlinkRequest>(`/requests/${id}`, payload).then((r) => r.data),

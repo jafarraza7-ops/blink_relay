@@ -172,6 +172,15 @@ class RequestListResponse(BaseModel):
     page_size: int
 
 
+class SimilarRequestResponse(BaseModel):
+    id: str
+    reference_id: str
+    title: str
+    pod: Pod
+    status: RequestStatus
+    similarity_score: float
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/requests", response_model=RequestResponse, status_code=status.HTTP_201_CREATED)
@@ -390,6 +399,23 @@ async def get_request(
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
     return RequestResponse.model_validate(req)
+
+
+@router.get("/requests/{request_id}/similar", response_model=list[SimilarRequestResponse])
+async def get_similar_requests(
+    request_id: uuid.UUID,
+    limit: Annotated[int, Query(ge=1, le=10)] = 5,
+    db: Annotated[AsyncSession, Depends(get_db)] = Depends(get_db),
+) -> list[SimilarRequestResponse]:
+    """Find requests similar to the given request by keyword matching.
+
+    Returns up to `limit` similar requests from the same pod/type,
+    ranked by Jaccard similarity score (0-100).
+    """
+    from app.services.similarity_service import find_similar_requests
+
+    similar = await find_similar_requests(db, str(request_id), limit=limit)
+    return [SimilarRequestResponse(**s.__dict__) for s in similar]
 
 
 @router.patch("/requests/{request_id}", response_model=RequestResponse)

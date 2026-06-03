@@ -5,12 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { StatusBadge } from '@/components/request/StatusBadge'
 import { PodBadge } from '@/components/request/PodBadge'
 import { TypeBadge } from '@/components/request/TypeBadge'
-import { useRequest } from '@/hooks/useRequests'
+import { useRequest, useSimilarRequests } from '@/hooks/useRequests'
 import { useToast } from '@/components/ui/use-toast'
 
 export function ConfirmPage() {
   const { id } = useParams<{ id: string }>()
   const { data: req, isLoading, isError } = useRequest(id ?? '')
+  const { data: similarRequests, isLoading: loadingSimilar } = useSimilarRequests(id ?? null)
   const { toast } = useToast()
 
   if (!id) return <Navigate to="/" replace />
@@ -77,6 +78,64 @@ export function ConfirmPage() {
           </p>
         </CardContent>
       </Card>
+
+      {loadingSimilar && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Similar Tickets</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-16 rounded bg-muted animate-pulse" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loadingSimilar && similarRequests && similarRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Similar Tickets ({similarRequests.length})</CardTitle>
+            <CardDescription>
+              Review these existing requests — your issue may already be tracked
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {similarRequests.map((similar) => (
+                <a
+                  key={similar.id}
+                  href={`/respond/${similar.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg border p-3 hover:bg-muted transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-primary hover:underline">
+                        {similar.reference_id}
+                      </p>
+                      <p className="text-sm text-foreground line-clamp-2 mt-1">{similar.title}</p>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        <PodBadge pod={similar.pod} />
+                        <StatusBadge status={similar.status} />
+                      </div>
+                    </div>
+                    <div className="text-right whitespace-nowrap">
+                      <p className="text-sm font-semibold text-green-600">
+                        {similar.similarity_score.toFixed(0)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">match</p>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-3">
         <Button asChild variant="outline" className="flex-1">

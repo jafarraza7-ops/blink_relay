@@ -46,6 +46,15 @@ export interface BlinkRequest {
   updated_at: string
 }
 
+export interface SimilarRequest {
+  id: string
+  reference_id: string
+  title: string
+  pod: Pod
+  status: RequestStatus
+  similarity_score: number
+}
+
 export interface RequestCreate {
   title: string
   request_type: RequestType

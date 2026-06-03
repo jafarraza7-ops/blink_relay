@@ -71,6 +71,14 @@ export function useRequest(id: string) {
   })
 }
 
+export function useSimilarRequests(id: string | null) {
+  return useQuery({
+    queryKey: [...requestKeys.detail(id ?? ''), 'similar'],
+    queryFn: () => requestsApi.getSimilar(id!),
+    enabled: !!id,
+  })
+}
+
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 export function useCreateRequest() {
