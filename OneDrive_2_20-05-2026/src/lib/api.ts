@@ -167,6 +167,10 @@ export const workflowApi = {
   /** Uses /reject (not /status) so the backend can fire the rejection email notification. */
   reject: (id: string, payload: RejectPayload): Promise<{ id: string; status: string }> =>
     apiClient.post(`/requests/${id}/reject`, payload).then((r) => r.data),
+
+  /** Cancel a request — only available for requestors on their own requests. */
+  cancel: (id: string): Promise<{ id: string; status: string }> =>
+    apiClient.post(`/requests/${id}/cancel`, {}).then((r) => r.data),
 }
 
 // ── Thread ────────────────────────────────────────────────────────────────────

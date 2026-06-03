@@ -88,6 +88,7 @@ class RequestStatus(StrEnum):
     IN_PROGRESS = "InProgress"
     COMPLETED = "Completed"
     CLOSED = "Closed"
+    CANCELLED = "Cancelled"
 
 
 # ── State machine ─────────────────────────────────────────────────────────────
@@ -96,15 +97,15 @@ class RequestStatus(StrEnum):
 # against this map before applying any status change, keeping the state machine
 # authoritative in one place rather than duplicated across routes.
 ALLOWED_TRANSITIONS: dict[RequestStatus, set[RequestStatus]] = {
-    RequestStatus.SUBMITTED:     {RequestStatus.IN_REVIEW, RequestStatus.AWAITING_INFO, RequestStatus.APPROVED, RequestStatus.REJECTED},
-    RequestStatus.IN_REVIEW:     {RequestStatus.AWAITING_INFO, RequestStatus.APPROVED, RequestStatus.REJECTED, RequestStatus.IN_PROGRESS},
-    RequestStatus.AWAITING_INFO: {RequestStatus.INFO_RECEIVED},
-    RequestStatus.INFO_RECEIVED: {RequestStatus.IN_REVIEW, RequestStatus.APPROVED},
-    RequestStatus.APPROVED:      {RequestStatus.IN_REVIEW, RequestStatus.IN_PROGRESS, RequestStatus.REJECTED},
+    RequestStatus.SUBMITTED:     {RequestStatus.IN_REVIEW, RequestStatus.AWAITING_INFO, RequestStatus.APPROVED, RequestStatus.REJECTED, RequestStatus.CANCELLED},
+    RequestStatus.IN_REVIEW:     {RequestStatus.AWAITING_INFO, RequestStatus.APPROVED, RequestStatus.REJECTED, RequestStatus.IN_PROGRESS, RequestStatus.CANCELLED},
+    RequestStatus.AWAITING_INFO: {RequestStatus.INFO_RECEIVED, RequestStatus.CANCELLED},
+    RequestStatus.INFO_RECEIVED: {RequestStatus.IN_REVIEW, RequestStatus.APPROVED, RequestStatus.CANCELLED},
     RequestStatus.REJECTED:      set(),
     RequestStatus.IN_PROGRESS:   {RequestStatus.COMPLETED},
     RequestStatus.COMPLETED:     {RequestStatus.CLOSED},
     RequestStatus.CLOSED:        set(),
+    RequestStatus.CANCELLED:     set(),
 }
 
 

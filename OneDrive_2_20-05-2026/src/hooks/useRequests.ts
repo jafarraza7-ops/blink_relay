@@ -146,6 +146,19 @@ export function useRejectRequest(requestId: string) {
   })
 }
 
+export function useCancelRequest(requestId: string) {
+  const queryClient = useQueryClient()
+  return useMutation<{ id: string; status: string }, Error>({
+    mutationFn: () => workflowApi.cancel(requestId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: requestKeys.detail(requestId) })
+      void queryClient.invalidateQueries({ queryKey: requestKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: requestKeys.mineLists() })
+      void queryClient.invalidateQueries({ queryKey: threadKeys.all(requestId) })
+    },
+  })
+}
+
 /**
  * Used on the public /respond/:id page — no reviewer auth required.
  * Only invalidates the detail cache; the requestor has no list view.

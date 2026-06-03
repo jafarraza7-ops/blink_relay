@@ -418,6 +418,91 @@ async def get_similar_requests(
     return [SimilarRequestResponse(**s.__dict__) for s in similar]
 
 
+@router.post("/requests/{request_id}/cancel", status_code=status.HTTP_200_OK)
+async def cancel_request(
+    request_id: uuid.UUID,
+    user: Annotated[UserClaims, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Cancel a request. Only the original requestor can cancel their own request.
+    Cancellation is only allowed for Submitted, InReview, and AwaitingInfo statuses."""
+    from app.models.request import ALLOWED_TRANSITIONS, AuditLog, Message, MessageType
+
+    req = await db.get(Request, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    # Only the requestor can cancel their own request (or admins)
+    is_admin = user.roles and Role.ADMIN in user.roles
+    if not is_admin:
+        # For email users: compare emails, for Azure AD: compare OIDs
+        if user.oid and req.submitter_oid:
+            is_requestor = user.oid == req.submitter_oid
+        else:
+            is_requestor = user.email == req.submitter_email
+
+        if not is_requestor:
+            raise HTTPException(status_code=403, detail="Only the requestor can cancel this request")
+
+    # Validate status transition
+    if RequestStatus.CANCELLED not in ALLOWED_TRANSITIONS.get(req.status, set()):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot cancel request with status '{req.status}'"
+        )
+
+    prev_status = req.status
+    req.status = RequestStatus.CANCELLED
+    await db.flush()
+
+    # Add audit log
+    db.add(AuditLog(
+        request_id=req.id,
+        actor_oid=user.oid,
+        actor_email=user.email,
+        action="request_cancelled",
+        previous_value=str(prev_status),
+        new_value=str(RequestStatus.CANCELLED),
+    ))
+
+    # Add status change message
+    db.add(Message(
+        request_id=req.id,
+        author_oid=user.oid,
+        author_email=user.email,
+        author_name=user.name,
+        body=f"Request cancelled by {user.name}.",
+        is_internal=False,
+        message_type=MessageType.STATUS_CHANGE,
+    ))
+
+    await db.commit()
+
+    # Send email notification
+    try:
+        from app.workers.email_tasks import task_send_status_update_email
+        task_send_status_update_email.delay(
+            str(req.id),
+            req.submitter_email,
+            req.reference_id,
+            req.title,
+            "Cancelled",
+            user.name,
+            f"Your request has been cancelled.",
+        )
+    except Exception as logger_exc:
+        logger.warning(f"Failed to queue cancellation email: {logger_exc}")
+
+    # Add comment to JSM
+    try:
+        from app.workers.tasks import task_jsm_add_comment
+        task_jsm_add_comment.delay(str(req.id), f"Request cancelled by {user.name}.", False)
+    except Exception as logger_exc:
+        logger.warning(f"Failed to queue JSM comment: {logger_exc}")
+
+    return {"id": str(req.id), "status": str(req.status)}
+
+
 @router.patch("/requests/{request_id}", response_model=RequestResponse)
 async def update_request(
     request_id: uuid.UUID,

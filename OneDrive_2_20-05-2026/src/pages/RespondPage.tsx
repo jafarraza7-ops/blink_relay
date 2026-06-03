@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, ExternalLink, Pencil, Send } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ExternalLink, Pencil, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,7 +12,7 @@ import { FileAttachment } from '@/components/request/FileAttachment'
 import { EditRequestDialog } from '@/components/request/EditRequestDialog'
 import { TruncatedBody, MessageThread } from '@/components/request/MessageThread'
 import { useAuth } from '@/hooks/useAuth'
-import { useRequest, useRespondToRequest } from '@/hooks/useRequests'
+import { useRequest, useRespondToRequest, useCancelRequest } from '@/hooks/useRequests'
 import { useThread } from '@/hooks/useThread'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
@@ -26,16 +26,26 @@ const EDITABLE_STATUSES: ReadonlySet<RequestStatus> = new Set<RequestStatus>([
   'InfoReceived',
 ])
 
+// Statuses from which a request can be cancelled
+const CANCELLABLE_STATUSES: ReadonlySet<RequestStatus> = new Set<RequestStatus>([
+  'Submitted',
+  'InReview',
+  'AwaitingInfo',
+  'InfoReceived',
+])
+
 export function RespondPage() {
   const { id } = useParams<{ id: string }>()
   const { data: req, isLoading, isError } = useRequest(id ?? '')
   const { mutate: respond, isPending } = useRespondToRequest(id ?? '')
+  const { mutate: cancel, isPending: isCancelling } = useCancelRequest(id ?? '')
   const { data: messages = [] } = useThread(id ?? '')
   const lastClarificationQ = [...messages].reverse().find((m) => m.message_type === 'clarification_question')
   const { toast } = useToast()
   const { isAuthenticated, user, isPM } = useAuth()
   const [responseText, setResponseText] = useState('')
   const [editOpen, setEditOpen] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   if (!id) return <Navigate to="/" replace />
 
@@ -61,6 +71,7 @@ export function RespondPage() {
   const isAwaitingInfo = req.status === 'AwaitingInfo'
   const isOwnRequest = isAuthenticated && user?.email === req.submitter_email
   const canEdit = (isOwnRequest || isPM) && EDITABLE_STATUSES.has(req.status)
+  const canCancel = isOwnRequest && CANCELLABLE_STATUSES.has(req.status)
   // Authenticated users came in via /my-requests; anonymous users came from an
   // email link and shouldn't have a "back" target inside the app.
   const backTo = isAuthenticated ? '/my-requests' : null
@@ -77,6 +88,16 @@ export function RespondPage() {
         onError: (err) => toast({ title: 'Failed to submit', description: err.message, variant: 'destructive' }),
       }
     )
+  }
+
+  const handleCancel = () => {
+    cancel(undefined, {
+      onSuccess: () => {
+        toast({ title: 'Request cancelled', description: 'Your request has been cancelled successfully.' })
+        setShowCancelConfirm(false)
+      },
+      onError: (err) => toast({ title: 'Failed to cancel', description: err.message, variant: 'destructive' }),
+    })
   }
 
   return (
@@ -125,6 +146,16 @@ export function RespondPage() {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
+                  </Button>
+                )}
+                {canCancel && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    Cancel Request
                   </Button>
                 )}
                 <StatusBadge status={req.status} />
@@ -253,6 +284,50 @@ export function RespondPage() {
       {/* Edit dialog — mounted only when the user is allowed to open it */}
       {canEdit && (
         <EditRequestDialog request={req} open={editOpen} onOpenChange={setEditOpen} />
+      )}
+
+      {/* Cancel confirmation dialog */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-sm">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                </div>
+                <CardTitle className="text-red-900">Cancel Request?</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to cancel this request? This action cannot be undone, and the review team will be notified.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCancelConfirm(false)}
+                  disabled={isCancelling}
+                >
+                  Keep Request
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleCancel}
+                  disabled={isCancelling}
+                >
+                  {isCancelling ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+                      Cancelling…
+                    </>
+                  ) : (
+                    'Cancel Request'
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   )
