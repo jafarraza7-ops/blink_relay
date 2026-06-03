@@ -140,7 +140,7 @@ async def find_similar_requests(
                     reference_id=candidate.reference_id or str(candidate.id),
                     title=candidate.title,
                     pod=candidate.pod,
-                    status=str(candidate.status),
+                    status=candidate.status.value,
                     similarity_score=round(score * 100, 1),
                 )
             )

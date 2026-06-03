@@ -404,8 +404,8 @@ async def get_request(
 @router.get("/requests/{request_id}/similar", response_model=list[SimilarRequestResponse])
 async def get_similar_requests(
     request_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
     limit: Annotated[int, Query(ge=1, le=10)] = 5,
-    db: Annotated[AsyncSession, Depends(get_db)] = Depends(get_db),
 ) -> list[SimilarRequestResponse]:
     """Find requests similar to the given request by keyword matching.
 
