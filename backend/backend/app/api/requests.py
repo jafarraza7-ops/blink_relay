@@ -55,7 +55,11 @@ from app.workers.tasks import (
     task_notify_pm_clarification_response,
     task_send_status_notification,
 )
-from app.workers.email_tasks import task_send_request_creation_email
+from app.workers.email_tasks import (
+    task_send_request_creation_email,
+    task_send_status_update_email,
+    task_send_new_message_email,
+)
 
 router = APIRouter(tags=["requests"])
 
@@ -446,6 +450,23 @@ async def update_request(
 
     await db.commit()
     await db.refresh(req)
+
+    # Send email if status was changed
+    if "status" in changed_summary:
+        try:
+            settings = get_settings()
+            old_status = changes.get("status")  # The new status is already in req
+            task_send_status_update_email.delay(
+                req.submitter_email,
+                req.reference_id,
+                req.title,
+                str(changes["status"]),  # old_value before setattr
+                req.status.value,
+                req.submitter_name,
+                f"{settings.FRONTEND_URL}/requests/{req.id}",
+            )
+        except Exception:
+            logger.warning("task_send_status_update_email raised in eager mode — non-fatal", exc_info=True)
 
     # Notify JSM so the requestor's service-desk ticket reflects the edit.
     if changed_summary:

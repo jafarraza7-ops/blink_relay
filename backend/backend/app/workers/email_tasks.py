@@ -43,6 +43,62 @@ def task_send_email_login_link(self, email: str, login_url: str, user_name: str 
 
 
 @shared_task(bind=True, max_retries=3)
+def task_send_status_update_email(self, email: str, reference_id: str, title: str, old_status: str, new_status: str, user_name: str, request_url: str):
+    """Send request status update notification.
+
+    Args:
+        email: Recipient email address
+        reference_id: Request reference ID
+        title: Request title
+        old_status: Previous status
+        new_status: New status
+        user_name: Name of the recipient
+        request_url: URL to view the request
+    """
+    async def _send():
+        from app.services.email_service import get_status_update_template
+        html_content = get_status_update_template(reference_id, title, old_status, new_status, user_name, request_url)
+        await NotificationService().send_email(
+            to=email,
+            subject=f"Status Update: {reference_id}",
+            body_html=html_content,
+        )
+
+    try:
+        _run(_send())
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task(bind=True, max_retries=3)
+def task_send_new_message_email(self, email: str, reference_id: str, title: str, author_name: str, message_preview: str, user_name: str, request_url: str):
+    """Send new message notification.
+
+    Args:
+        email: Recipient email address
+        reference_id: Request reference ID
+        title: Request title
+        author_name: Who sent the message
+        message_preview: First 100 chars of message
+        user_name: Name of the recipient
+        request_url: URL to view the conversation
+    """
+    async def _send():
+        from app.services.email_service import get_new_message_template
+        html_content = get_new_message_template(reference_id, title, author_name, message_preview, user_name, request_url)
+        await NotificationService().send_email(
+            to=email,
+            subject=f"New Message: {reference_id}",
+            body_html=html_content,
+        )
+
+    try:
+        _run(_send())
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task(bind=True, max_retries=3)
 def task_send_request_creation_email(self, email: str, reference_id: str, title: str, request_type: str, priority: str, user_name: str, request_url: str):
     """Send request creation confirmation email.
 

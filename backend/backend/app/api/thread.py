@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import Role, UserClaims, get_current_user, get_optional_user, require_role
 from app.models.request import (
@@ -20,6 +21,7 @@ from app.models.request import (
     RequestStatus,
 )
 from app.workers.tasks import task_jsm_add_comment, task_send_clarification_email
+from app.workers.email_tasks import task_send_new_message_email
 
 router = APIRouter(tags=["thread"])
 
@@ -104,6 +106,28 @@ async def post_message(
     await db.flush()
     await db.refresh(msg)
     await db.commit()
+
+    # Send email notification for new message
+    try:
+        settings = get_settings()
+        is_from_requestor = req.submitter_oid == user.oid
+        recipient_email = req.submitter_email if not is_from_requestor else None
+
+        # Send to requestor if message is from a reviewer, or to reviewers if from requestor
+        if recipient_email:  # Message from reviewer to requestor
+            message_preview = payload.body[:100].replace("\n", " ")
+            task_send_new_message_email.delay(
+                recipient_email,
+                req.reference_id,
+                req.title,
+                user.name,
+                message_preview,
+                req.submitter_name,
+                f"{settings.FRONTEND_URL}/requests/{req.id}",
+            )
+    except Exception as e:
+        import logging
+        logging.warning(f"task_send_new_message_email failed: {e}")
 
     jsm_body = f"**{user.name}** ({user.email}):\n\n{payload.body}"
     task_jsm_add_comment.delay(str(request_id), jsm_body, not is_internal)
