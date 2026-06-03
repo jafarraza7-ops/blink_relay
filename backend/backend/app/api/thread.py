@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Annotated, Optional
@@ -8,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.core.config import get_settings
 from app.core.database import get_db
@@ -110,14 +113,20 @@ async def post_message(
     # Send email notification for new message
     try:
         settings = get_settings()
-        is_from_requestor = req.submitter_oid == user.oid
-        recipient_email = req.submitter_email if not is_from_requestor else None
+        # Check if message sender is the requestor
+        # For Azure AD users: compare OIDs (if both have OIDs)
+        # For email users: compare emails
+        if user.oid and req.submitter_oid:
+            is_from_requestor = user.oid == req.submitter_oid
+        else:
+            is_from_requestor = user.email == req.submitter_email
 
-        # Send to requestor if message is from a reviewer, or to reviewers if from requestor
-        if recipient_email:  # Message from reviewer to requestor
-            message_preview = payload.body[:100].replace("\n", " ")
+        message_preview = payload.body[:100].replace("\n", " ")
+
+        if not is_from_requestor:  # Message from reviewer to requestor
+            logger.info(f"📧 Queuing email to requestor {req.submitter_email} from {user.email}")
             task_send_new_message_email.delay(
-                recipient_email,
+                req.submitter_email,
                 req.reference_id,
                 req.title,
                 user.name,
@@ -125,9 +134,32 @@ async def post_message(
                 req.submitter_name,
                 f"{settings.FRONTEND_URL}/requests/{req.id}",
             )
+        else:  # Message from requestor to reviewers - notify all PMs/reviewers
+            from app.models.request import User
+
+            logger.info(f"📧 Queuing email to PMs from requestor {user.email}")
+            # Get all users and filter for PMs/Admins
+            result = await db.execute(select(User))
+            all_users = result.scalars().all()
+
+            reviewer_roles = {Role.PRODUCT_MANAGER, Role.ADMIN, Role.POD_REVIEWER}
+            for reviewer in all_users:
+                # Check if reviewer has any of the reviewer roles and is not the requestor
+                if reviewer.email and reviewer.email != user.email:
+                    reviewer_role_set = set(reviewer.roles) if reviewer.roles else set()
+                    if reviewer_role_set & reviewer_roles:  # Intersection check
+                        logger.info(f"📧 Queuing email to reviewer {reviewer.email}")
+                        task_send_new_message_email.delay(
+                            reviewer.email,
+                            req.reference_id,
+                            req.title,
+                            user.name,
+                            message_preview,
+                            req.submitter_name,
+                            f"{settings.FRONTEND_URL}/requests/{req.id}",
+                        )
     except Exception as e:
-        import logging
-        logging.warning(f"task_send_new_message_email failed: {e}")
+        logger.exception(f"Failed to queue email: {e}")
 
     jsm_body = f"**{user.name}** ({user.email}):\n\n{payload.body}"
     task_jsm_add_comment.delay(str(request_id), jsm_body, not is_internal)

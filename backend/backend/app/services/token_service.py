@@ -135,6 +135,71 @@ async def validate_token(
     return token_record, None
 
 
+async def check_and_update_lockout(db: AsyncSession, email: str) -> tuple[bool, Optional[str]]:
+    """Check if account is locked and update failed attempts.
+    
+    Returns:
+        (is_locked, error_message) tuple
+    """
+    from app.models.request import User
+    
+    result = await db.execute(select(User).where(User.email == email.lower()))
+    user = result.scalar()
+    
+    if not user:
+        return False, None
+    
+    now = datetime.now(timezone.utc)
+    
+    # Check if account is currently locked
+    if user.locked_until and user.locked_until > now:
+        remaining_minutes = int((user.locked_until - now).total_seconds() / 60)
+        return True, f"Account locked. Try again in {remaining_minutes} minutes."
+    
+    # If lock has expired, reset failed attempts
+    if user.locked_until and user.locked_until <= now:
+        user.locked_until = None
+        user.failed_login_attempts = 0
+        db.add(user)
+        await db.flush()
+    
+    return False, None
+
+
+async def increment_failed_attempts(db: AsyncSession, email: str) -> None:
+    """Increment failed login attempts and lock account if needed."""
+    from app.models.request import User
+    
+    result = await db.execute(select(User).where(User.email == email.lower()))
+    user = result.scalar()
+    
+    if not user:
+        return
+    
+    user.failed_login_attempts += 1
+    
+    # Lock account after 5 failed attempts for 15 minutes
+    if user.failed_login_attempts >= 5:
+        user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+    
+    db.add(user)
+    await db.flush()
+
+
+async def reset_failed_attempts(db: AsyncSession, email: str) -> None:
+    """Reset failed attempts on successful login."""
+    from app.models.request import User
+    
+    result = await db.execute(select(User).where(User.email == email.lower()))
+    user = result.scalar()
+    
+    if user:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        db.add(user)
+        await db.flush()
+
+
 async def get_or_create_email_user(
     db: AsyncSession,
     email: str,
