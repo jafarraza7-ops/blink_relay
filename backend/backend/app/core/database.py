@@ -17,7 +17,16 @@ settings = get_settings()
 
 _is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 _engine_kwargs: dict = {"pool_pre_ping": not _is_sqlite, "echo": settings.is_local}
-if not _is_sqlite:
+
+if _is_sqlite:
+    # SQLite-specific settings to handle concurrent access
+    _engine_kwargs.update(
+        connect_args={
+            "timeout": 30,  # 30 second timeout for database locks
+            "check_same_thread": False,
+        }
+    )
+else:
     _engine_kwargs.update(pool_size=10, max_overflow=20, pool_recycle=3600)
 
 engine: AsyncEngine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
