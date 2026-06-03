@@ -48,8 +48,10 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
   const { data: messages = [], isLoading } = useThread(requestId)
   const { mutate: postMessage, isPending } = usePostMessage(requestId)
   const { user } = useAuth()
+  const isPM = user?.roles?.includes('ProductManager') || user?.roles?.includes('Admin')
   const { toast } = useToast()
   const [body, setBody] = useState('')
+  const [isInternal, setIsInternal] = useState(internalOnly)
   const [mentions, setMentions] = useState<string[]>([])
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([])
   const [mentionQuery, setMentionQuery] = useState('')
@@ -112,7 +114,7 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
     e.preventDefault()
     if (!body.trim()) return
     postMessage(
-      { body: body.trim(), is_internal: internalOnly, mentions },
+      { body: body.trim(), is_internal: isInternal, mentions },
       {
         onSuccess: () => {
           setBody('')
@@ -242,8 +244,19 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
         </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            {internalOnly && (
-              <span className="text-xs text-muted-foreground">Internal note — not visible to requestor</span>
+            {isPM && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                <input
+                  type="checkbox"
+                  checked={isInternal}
+                  onChange={(e) => setIsInternal(e.target.checked)}
+                  className="rounded border border-muted-foreground"
+                />
+                <span>{isInternal ? 'Internal note — not visible to requestor' : 'Visible to requestor'}</span>
+              </label>
+            )}
+            {!isPM && internalOnly && (
+              <span className="text-xs text-amber-600 font-medium">ℹ️ Internal note — not visible to requestor</span>
             )}
             {mentions.length > 0 && (
               <div className="flex gap-1">
