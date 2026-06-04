@@ -91,12 +91,18 @@ export function RespondPage() {
   }
 
   const handleCancel = () => {
+    // Close dialog immediately (optimistic close)
+    setShowCancelConfirm(false)
+
     cancel(undefined, {
       onSuccess: () => {
         toast({ title: 'Request cancelled', description: 'Your request has been cancelled successfully.' })
-        setShowCancelConfirm(false)
       },
-      onError: (err) => toast({ title: 'Failed to cancel', description: err.message, variant: 'destructive' }),
+      onError: (err) => {
+        // Reopen dialog if cancellation fails
+        setShowCancelConfirm(true)
+        toast({ title: 'Failed to cancel', description: err.message, variant: 'destructive' })
+      },
     })
   }
 
