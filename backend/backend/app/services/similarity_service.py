@@ -221,13 +221,19 @@ def _multi_stage_similarity(
 async def find_similar_requests(
     db: AsyncSession, request_id: str, limit: int = 5
 ) -> list[SimilarRequest]:
-    """Find highly similar requests (90%+ accuracy).
+    """Find related requests across domains with flexible matching.
 
-    Uses multi-stage filtering to ensure only truly relevant tickets appear:
-    1. Filters by pod and request_type (same domain)
-    2. Calculates multi-stage weighted similarity
-    3. Applies strict 65%+ confidence threshold
-    4. Returns top matches sorted by score
+    Uses multi-stage similarity to find related tickets regardless of pod/type:
+    1. Searches across ALL requests (no domain restrictions)
+    2. Calculates weighted similarity on title, problem, and area
+    3. Applies 10%+ threshold for broad semantic matching
+    4. Boosts score for same pod/type but doesn't require it
+    5. Returns top matches sorted by relevance score
+
+    This enables finding:
+    - Same issue across different pods
+    - Related features that solve similar problems
+    - Cross-domain dependencies and impacts
 
     Args:
         db: Database session
@@ -235,7 +241,7 @@ async def find_similar_requests(
         limit: Max number of similar requests to return
 
     Returns:
-        List of SimilarRequest with 90%+ accuracy, sorted by score
+        List of SimilarRequest sorted by relevance, includes cross-domain matches
     """
     # Parse and load the reference request
     try:
@@ -248,16 +254,11 @@ async def find_similar_requests(
     if not ref_req:
         return []
 
-    # Query candidates: same pod and request_type (limit to prevent timeout)
+    # Query ALL candidates (no pod/type restrictions) to find cross-domain similarities
+    # This allows finding related requests across different pods and types
     try:
         result = await db.execute(
-            select(Request).where(
-                and_(
-                    Request.id != ref_req_id,
-                    Request.pod == ref_req.pod,
-                    Request.request_type == ref_req.request_type,
-                )
-            ).limit(100)  # Limit to 100 candidates to prevent timeout on large pods
+            select(Request).where(Request.id != ref_req_id).limit(500)  # Increased limit for broader search
         )
         candidates = result.scalars().all()
     except Exception as e:
@@ -267,13 +268,13 @@ async def find_similar_requests(
     if not candidates:
         return []
 
-    # Score all candidates (early termination if we get many good matches)
+    # Score all candidates with improved weighting for cross-domain matches
     similarities = []
-    min_similarity_threshold = 0.15  # 15%+ threshold — catch even loose semantic matches
+    min_similarity_threshold = 0.10  # 10%+ threshold — much more lenient to catch related tickets across domains
 
     for candidate in candidates:
         # Multi-stage similarity calculation
-        score = _multi_stage_similarity(
+        base_score = _multi_stage_similarity(
             ref_req.title,
             ref_req.business_problem,
             ref_req.affected_area,
@@ -282,7 +283,16 @@ async def find_similar_requests(
             candidate.affected_area,
         )
 
-        # Only include high-confidence matches
+        # Bonus for same pod/type (not required, but helps ranking)
+        domain_bonus = 0.0
+        if candidate.pod == ref_req.pod and candidate.request_type == ref_req.request_type:
+            domain_bonus = 0.05  # 5% bonus for same domain
+        elif candidate.pod == ref_req.pod or candidate.request_type == ref_req.request_type:
+            domain_bonus = 0.02  # 2% bonus for partial match
+
+        score = min(1.0, base_score + domain_bonus)
+
+        # Include matches above threshold (now much more lenient)
         if score >= min_similarity_threshold:
             similarities.append(
                 SimilarRequest(
@@ -295,7 +305,7 @@ async def find_similar_requests(
                 )
             )
             # Early termination if we have enough results
-            if len(similarities) >= limit * 2:
+            if len(similarities) >= limit * 3:
                 break
 
     # Sort by score descending, return top N
