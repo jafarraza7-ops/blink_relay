@@ -304,16 +304,15 @@ async def find_similar_requests(
                     similarity_score=round(score * 100, 1),
                 )
             )
-            # Early termination if we have enough results
-            if len(similarities) >= limit * 3:
+            # Early termination if we have enough results (process 2x to get best matches)
+            if len(similarities) >= limit * 2:
                 break
 
-    # Sort by score descending, return top N
+    # Sort by score descending, return top N (max 5)
     similarities.sort(key=lambda x: x.similarity_score, reverse=True)
 
     logger.debug(
-        f"Found {len(similarities)} similar requests for {request_id} "
-        f"(threshold: 65%, showing {len(similarities[:limit])} of {len(similarities)})"
+        f"Found {len(similarities)} similar requests for {request_id}, returning top {min(limit, len(similarities))}"
     )
 
     return similarities[:limit]
