@@ -150,8 +150,15 @@ export function useCancelRequest(requestId: string) {
   const queryClient = useQueryClient()
   return useMutation<{ id: string; status: string }, Error>({
     mutationFn: () => workflowApi.cancel(requestId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: requestKeys.detail(requestId) })
+    onSuccess: (data) => {
+      // Optimistically update the request detail cache with new status
+      const detailKey = requestKeys.detail(requestId)
+      queryClient.setQueryData(detailKey, (oldData: BlinkRequest | undefined) => {
+        if (!oldData) return oldData
+        return { ...oldData, status: data.status as any }
+      })
+
+      // Invalidate lists to refetch with updated request
       void queryClient.invalidateQueries({ queryKey: requestKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: requestKeys.mineLists() })
       void queryClient.invalidateQueries({ queryKey: threadKeys.all(requestId) })
