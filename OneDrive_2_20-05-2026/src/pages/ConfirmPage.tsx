@@ -79,10 +79,12 @@ export function ConfirmPage() {
         </CardContent>
       </Card>
 
+      {/* Similar Tickets Section */}
       {loadingSimilar && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Similar Tickets</CardTitle>
+            <CardDescription>Analyzing your request...</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -133,6 +135,19 @@ export function ConfirmPage() {
                 </a>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!loadingSimilar && (!similarRequests || similarRequests.length === 0) && (
+        <Card className="border-green-100 bg-green-50">
+          <CardHeader>
+            <CardTitle className="text-base text-green-900">No Similar Tickets Found</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-green-800">
+              Great! Your request appears to be unique. No similar existing tickets were found with 90%+ confidence match.
+            </p>
           </CardContent>
         </Card>
       )}
