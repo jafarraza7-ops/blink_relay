@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import generate_jwt_token
-from app.models.request import User
+from app.models.request import User, EmailLoginToken
 from app.services.token_service import (
     create_login_token,
     validate_token,
@@ -99,20 +99,31 @@ async def verify_token(
     
     # Validate token
     token_record, error = await validate_token(db, payload.token, ip_address, user_agent)
-    
+
     if error:
         raise HTTPException(status_code=400, detail=error)
-    
+
+    # Explicitly update the token record using a direct query
+    from datetime import datetime, timezone
+    from sqlalchemy import update
+
+    await db.execute(
+        update(EmailLoginToken).where(EmailLoginToken.id == token_record.id).values(
+            is_used=True,
+            used_at=datetime.now(timezone.utc),
+            used_ip_address=ip_address,
+            used_user_agent=user_agent,
+        )
+    )
+
     # Get or create user
     user = await get_or_create_email_user(db, token_record.email)
-    
-    # Link token to user
-    from datetime import datetime, timezone
-    token_record.user_id = user.id
+
+    # Update user with verified email and last login info
     user.email_verified = True
     user.last_login_method = "email"
     user.last_seen_at = datetime.now(timezone.utc)
-    
+
     await db.commit()
     
     # Generate JWT
