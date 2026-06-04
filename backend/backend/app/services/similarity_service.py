@@ -30,54 +30,105 @@ class SimilarRequest:
 
 
 def _extract_keywords(text: Optional[str]) -> set[str]:
-    """Extract and normalize keywords from text."""
+    """Extract and normalize keywords from text.
+
+    Filters for meaningful terms:
+    - At least 3 characters long
+    - Excludes common stop words and function words
+    - Excludes common domain words that appear in most tickets
+    """
     if not text:
         return set()
 
     text = text.lower()
     # Remove special chars, split on whitespace/punctuation
     words = re.findall(r"\b\w+\b", text)
-    # Filter out common stop words
+
+    # Comprehensive stop words and common generic terms
     stop_words = {
-        "a",
-        "an",
-        "and",
-        "the",
-        "is",
-        "are",
-        "for",
-        "to",
-        "of",
-        "in",
-        "on",
-        "at",
-        "by",
-        "with",
-        "or",
-        "as",
-        "be",
-        "from",
-        "it",
-        "this",
-        "that",
-        "we",
-        "our",
-        "can",
-        "has",
-        "have",
-        "been",
-        "need",
+        # Articles and prepositions
+        "a", "an", "and", "the", "is", "are", "for", "to", "of", "in", "on",
+        "at", "by", "with", "or", "as", "be", "from", "it", "this", "that",
+        "we", "our", "can", "has", "have", "been", "need", "will", "should",
+        "would", "could", "get", "got", "make", "made", "do", "does", "did",
+        "not", "no", "yes", "where", "when", "how", "why", "which", "what",
+        # Common request/ticket words that appear everywhere
+        "request", "ticket", "issue", "system", "user", "data", "feature",
+        "bug", "error", "fix", "add", "update", "change", "improve", "new",
+        "able", "help", "need", "want", "like", "use", "work", "allow",
+        "follow", "process", "workflow", "status", "time", "day", "way",
+        "thing", "try", "set", "see", "check", "find", "give", "allow",
+        "provide", "better", "information", "important", "different",
     }
-    return {w for w in words if len(w) > 2 and w not in stop_words}
+
+    # Extract keywords: 3+ chars, not in stop words
+    keywords = {w for w in words if len(w) > 2 and w not in stop_words}
+
+    # Filter out very common words that appear in most tickets
+    if len(keywords) > 0:
+        # Keep only keywords that are more specific/meaningful
+        keywords = {w for w in keywords if not any(
+            common in w for common in ['request', 'ticket', 'issue']
+        )}
+
+    return keywords
 
 
 def _jaccard_similarity(keywords1: set[str], keywords2: set[str]) -> float:
-    """Calculate Jaccard similarity (intersection / union)."""
+    """Calculate Jaccard similarity (intersection / union).
+
+    Returns a score between 0 and 1 where:
+    - 1.0 = perfect match
+    - 0.0 = no overlap
+    """
     if not keywords1 or not keywords2:
         return 0.0
     intersection = len(keywords1 & keywords2)
     union = len(keywords1 | keywords2)
     return intersection / union if union > 0 else 0.0
+
+
+def _weighted_similarity(
+    ref_title: str,
+    ref_problem: Optional[str],
+    ref_area: Optional[str],
+    cand_title: str,
+    cand_problem: Optional[str],
+    cand_area: Optional[str],
+) -> float:
+    """Calculate weighted similarity across multiple fields.
+
+    Weights:
+    - Title: 50% (most important, defines the request)
+    - Business problem: 35% (explains the need)
+    - Affected area: 15% (context)
+
+    Returns a score 0-1 where only high-confidence matches (>0.4) are meaningful.
+    """
+    # Extract keywords from each field
+    title_sim = _jaccard_similarity(
+        _extract_keywords(ref_title),
+        _extract_keywords(cand_title)
+    )
+
+    problem_sim = _jaccard_similarity(
+        _extract_keywords(ref_problem),
+        _extract_keywords(cand_problem)
+    )
+
+    area_sim = _jaccard_similarity(
+        _extract_keywords(ref_area),
+        _extract_keywords(cand_area)
+    )
+
+    # Weighted average with emphasis on title match
+    weighted_score = (
+        title_sim * 0.50 +  # Title is most important
+        problem_sim * 0.35 +  # Problem is secondary
+        area_sim * 0.15  # Area is tertiary
+    )
+
+    return weighted_score
 
 
 async def find_similar_requests(
@@ -104,15 +155,8 @@ async def find_similar_requests(
     if not ref_req:
         return []
 
-    # Extract keywords from reference request
-    ref_keywords = _extract_keywords(ref_req.title)
-    ref_keywords.update(_extract_keywords(ref_req.business_problem))
-    ref_keywords.update(_extract_keywords(ref_req.affected_area))
-
-    if not ref_keywords:
-        return []
-
     # Query all requests with same pod and type (excluding the reference request and completed tickets)
+    # Note: We filter by pod and request_type to ensure we're comparing like with like
     try:
         result = await db.execute(
             select(Request).where(
@@ -131,18 +175,24 @@ async def find_similar_requests(
         logger.warning(f"Could not load candidate requests for similarity matching: {e}")
         return []
 
-    # Score each candidate
+    # Score each candidate using weighted field similarity
     similarities = []
+    min_similarity_threshold = 0.40  # Only include matches with >40% similarity
+
     for candidate in candidates:
-        cand_keywords = _extract_keywords(candidate.title)
-        cand_keywords.update(_extract_keywords(candidate.business_problem))
-        cand_keywords.update(_extract_keywords(candidate.affected_area))
+        # Calculate weighted similarity across title, problem, and area
+        score = _weighted_similarity(
+            ref_req.title,
+            ref_req.business_problem,
+            ref_req.affected_area,
+            candidate.title,
+            candidate.business_problem,
+            candidate.affected_area,
+        )
 
-        if not cand_keywords:
-            continue
-
-        score = _jaccard_similarity(ref_keywords, cand_keywords)
-        if score > 0:  # Only include if there's some overlap
+        # Only include if score exceeds minimum threshold
+        # This filters out false positives and low-confidence matches
+        if score >= min_similarity_threshold:
             similarities.append(
                 SimilarRequest(
                     id=str(candidate.id),
