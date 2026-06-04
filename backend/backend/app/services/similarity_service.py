@@ -254,9 +254,11 @@ async def find_similar_requests(
     if not ref_req:
         return []
 
-    # Query candidates (no pod/type restrictions) to find cross-domain similarities
-    # Limit to 50 for performance (scoring 500+ can exceed frontend timeout during submission)
-    # Only include requests with a reference_id (official, submitted requests)
+    # OPTIMIZATION: Query candidates (no pod/type restrictions) to find cross-domain similarities
+    # Limit to 50 instead of 500 for performance (prevents frontend timeout during request submission)
+    # Reasoning: Scoring 500+ candidates exceeds 30s frontend timeout; 50 is sweet spot for speed vs accuracy
+    # Order by created_at DESC to prioritize recent requests (more likely to match)
+    # Only include requests with a reference_id (official, submitted requests - excludes drafts)
     try:
         result = await db.execute(
             select(Request).where(

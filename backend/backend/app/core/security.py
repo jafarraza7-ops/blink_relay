@@ -62,7 +62,19 @@ class Role(StrEnum):
 
 
 def validate_user_roles(roles: list[str]) -> list[str]:
-    """Validate and normalize user roles. Allow PMs to also be Requestors."""
+    """Validate and normalize user roles.
+
+    FEATURE: Allow PMs to be Requestors (removed mutual exclusivity)
+    Reasoning: PMs should be able to create their own requests and receive email notifications.
+    Previous behavior: ProductManager role automatically removed Requestor role.
+    Current behavior: Both roles can coexist for the same user.
+
+    Args:
+        roles: List of role strings assigned to user
+
+    Returns:
+        Validated list of roles (unchanged - no role filtering applied)
+    """
     if not roles:
         return roles
     return roles

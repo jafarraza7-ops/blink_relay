@@ -121,12 +121,14 @@ async def post_message(
         else:
             is_from_requestor = user.email == req.submitter_email
 
-        logger.info(f"DEBUG: user.oid={user.oid}, req.submitter_oid={req.submitter_oid}, user.email={user.email}, req.submitter_email={req.submitter_email}, is_from_requestor={is_from_requestor}")
-
+        # IMPROVEMENT: Detect message direction and determine email recipients
+        # Handles both Azure AD users (OID-based) and email users (email-based)
         message_preview = payload.body[:100].replace("\n", " ")
 
-        if not is_from_requestor:  # Message from reviewer to requestor
-            # Don't send email if the reviewer is the same person as the requestor
+        if not is_from_requestor:  # Message from reviewer/PM to requestor
+            # IMPROVEMENT: Skip self-email when PM is also the requestor
+            # Scenario: PM creates request, another PM replies → email sent
+            #         PM creates request, PM replies → skip self-email
             if user.email != req.submitter_email:
                 logger.info(f"📧 Queuing email to requestor {req.submitter_email} from {user.email}")
                 task_send_new_message_email.delay(
@@ -141,19 +143,21 @@ async def post_message(
             else:
                 logger.info(f"ℹ️ Skipping self-email: {user.email} is both reviewer and requestor")
         else:  # Message from requestor to reviewers - notify all PMs/reviewers
+            # FEATURE: Notify all PM/Admin/PodReviewers about requestor messages
+            # Each reviewer gets their own email notification
             from app.models.request import User
 
             logger.info(f"📧 Queuing email to PMs from requestor {user.email}")
-            # Get all users and filter for PMs/Admins
+            # Get all users and filter for review roles
             result = await db.execute(select(User))
             all_users = result.scalars().all()
 
             reviewer_roles = {Role.PRODUCT_MANAGER, Role.ADMIN, Role.POD_REVIEWER}
             for reviewer in all_users:
-                # Check if reviewer has any of the reviewer roles and is not the requestor
+                # Send email to all reviewers except the requestor (self-exclusion)
                 if reviewer.email and reviewer.email != user.email:
                     reviewer_role_set = set(reviewer.roles) if reviewer.roles else set()
-                    if reviewer_role_set & reviewer_roles:  # Intersection check
+                    if reviewer_role_set & reviewer_roles:  # Intersection check - has at least one reviewer role
                         logger.info(f"📧 Queuing email to reviewer {reviewer.email}")
                         task_send_new_message_email.delay(
                             reviewer.email,

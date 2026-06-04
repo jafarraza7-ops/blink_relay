@@ -31,6 +31,13 @@ def _html_wrap(body: str) -> str:
 
 class NotificationService:
     async def _send_smtp(self, to: str, subject: str, body_html: str) -> None:
+        """Send email via SMTP with timeout protection.
+
+        IMPROVEMENT: Add 10-second timeout to prevent frontend request timeouts
+        Problem: SMTP operations could hang indefinitely, blocking API responses
+        Solution: Use asyncio.wait_for with 10s timeout; log warning but don't fail request
+        Impact: Ensures API returns within 30s frontend timeout even if email is slow
+        """
         import aiosmtplib
         import asyncio
 
@@ -55,6 +62,7 @@ class NotificationService:
             )
             logger.info("SMTP email sent to %s: %s", to, subject)
         except asyncio.TimeoutError:
+            # GRACEFUL DEGRADATION: Log but don't fail - user's action completes even if email is slow
             logger.warning("SMTP timeout sending to %s, continuing anyway", to)
 
     async def _send_graph(self, to: str, subject: str, body_html: str) -> None:
@@ -88,12 +96,19 @@ class NotificationService:
                 logger.info("Graph email sent to %s: %s", to, subject)
 
     async def send_email(self, to: str, subject: str, body_html: str) -> None:
+        """Send email via configured backend (SMTP or Microsoft Graph).
+
+        IMPROVEMENT: Enhanced error logging with recipient and error details
+        Ensures silent failures are discoverable in logs without blocking the API request.
+        """
         try:
             if settings.EMAIL_BACKEND == "smtp":
                 await self._send_smtp(to, subject, body_html)
             else:
                 await self._send_graph(to, subject, body_html)
         except Exception as e:
+            # IMPROVEMENT: Log recipient and error message for debugging
+            # Exception is caught to prevent blocking API responses; errors are logged for monitoring
             logger.exception(f"send_email error to {to}: {str(e)} — swallowing to avoid blocking caller")
 
     async def notify_submitted(self, submitter_email: str, title: str, reference_id: str) -> None:

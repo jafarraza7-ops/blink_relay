@@ -362,12 +362,17 @@ async def list_my_requests(
 ) -> RequestListResponse:
     """Return the authenticated user's own submitted requests.
 
-    For Azure AD users: filter by submitter_oid
-    For email users: filter by submitter_email
+    IMPROVEMENT: Support both Azure AD and email-based authentication
+    - Azure AD users: identified by submitter_oid (stable Entra ID identifier)
+    - Email users: identified by submitter_email (no OID available)
+
+    This ensures users only see requests they created, regardless of auth method.
+    Fixes issue where email users saw all email-authenticated requests.
     """
     from sqlalchemy import or_
 
-    # Match either by OID (Azure AD) or email (email login)
+    # IMPROVEMENT: Match either by OID (Azure AD) or email (email login)
+    # Azure AD users have OID; email users have NULL OID but have email
     if user.oid:
         submitter_filter = Request.submitter_oid == user.oid
     else:

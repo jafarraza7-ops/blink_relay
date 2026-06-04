@@ -4,6 +4,12 @@ import { Send } from 'lucide-react'
 const BODY_LIMIT = 200
 
 export function TruncatedBody({ text }: { text: string }) {
+  // IMPROVEMENT: Add text wrapping for long unbroken text (e.g., URLs)
+  // Prevents message content from breaking container layout
+  // Classes:
+  //   - whitespace-pre-wrap: preserve line breaks from user input
+  //   - break-words: break long words/URLs to fit container
+  //   - overflow-hidden: clip text that exceeds container bounds
   const [expanded, setExpanded] = useState(false)
   if (text.length <= BODY_LIMIT) return <p className="whitespace-pre-wrap break-words overflow-hidden">{text}</p>
   return (
