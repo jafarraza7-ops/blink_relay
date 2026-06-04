@@ -72,6 +72,7 @@ export function RespondPage() {
   const isOwnRequest = isAuthenticated && user?.email === req.submitter_email
   const canEdit = (isOwnRequest || isPM) && EDITABLE_STATUSES.has(req.status)
   const canCancel = isOwnRequest && CANCELLABLE_STATUSES.has(req.status)
+  const canUploadFiles = isOwnRequest && !['Rejected', 'Closed', 'Cancelled'].includes(req.status)
   // Authenticated users came in via /my-requests; anonymous users came from an
   // email link and shouldn't have a "back" target inside the app.
   const backTo = isAuthenticated ? '/my-requests' : null
@@ -282,7 +283,7 @@ export function RespondPage() {
             <CardTitle className="text-base">Attachments</CardTitle>
           </CardHeader>
           <CardContent>
-            <FileAttachment requestId={req.id} canUpload={isAwaitingInfo} />
+            <FileAttachment requestId={req.id} canUpload={canUploadFiles} />
           </CardContent>
         </Card>
       </div>
