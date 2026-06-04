@@ -91,16 +91,16 @@ export function RespondPage() {
   }
 
   const handleCancel = () => {
-    // Close dialog immediately (optimistic close)
-    setShowCancelConfirm(false)
-
+    // Keep dialog open while cancelling
     cancel(undefined, {
       onSuccess: () => {
+        // Close dialog only after successful cancellation
+        setShowCancelConfirm(false)
         toast({ title: 'Request cancelled', description: 'Your request has been cancelled successfully.' })
       },
       onError: (err) => {
-        // Reopen dialog if cancellation fails
-        setShowCancelConfirm(true)
+        // Close dialog and show error
+        setShowCancelConfirm(false)
         toast({ title: 'Failed to cancel', description: err.message, variant: 'destructive' })
       },
     })
@@ -299,14 +299,22 @@ export function RespondPage() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
-                  <AlertCircle className="h-5 w-5 text-red-600" />
+                  {isCancelling ? (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                  )}
                 </div>
-                <CardTitle className="text-red-900">Cancel Request?</CardTitle>
+                <CardTitle className="text-red-900">
+                  {isCancelling ? 'Cancelling Request...' : 'Cancel Request?'}
+                </CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Are you sure you want to cancel this request? This action cannot be undone, and the review team will be notified.
+                {isCancelling
+                  ? 'Please wait while we cancel your request...'
+                  : 'Are you sure you want to cancel this request? This action cannot be undone, and the review team will be notified.'}
               </p>
               <div className="flex gap-3 justify-end">
                 <Button
@@ -314,7 +322,7 @@ export function RespondPage() {
                   onClick={() => setShowCancelConfirm(false)}
                   disabled={isCancelling}
                 >
-                  Keep Request
+                  {isCancelling ? 'Please wait...' : 'Keep Request'}
                 </Button>
                 <Button
                   variant="destructive"
