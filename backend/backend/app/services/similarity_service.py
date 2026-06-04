@@ -206,13 +206,11 @@ def _multi_stage_similarity(
     area_base, area_phrase = _calculate_field_similarity(ref_area, cand_area)
     area_score = min(1.0, area_base + area_phrase)
 
-    # Weighted combination with stricter requirements
-    # Title must have decent match for relevance
-    if title_score < 0.30:
-        return 0.0  # Title mismatch is disqualifying
-
+    # Weighted combination
+    # At 40% threshold, we're more lenient with title matching
+    # Allow broader matches by removing strict title requirement
     weighted_score = (
-        title_score * 0.60 +      # Title is critical
+        title_score * 0.60 +      # Title is important but not disqualifying
         problem_score * 0.30 +    # Problem provides semantic confirmation
         area_score * 0.10         # Area adds context
     )
@@ -271,7 +269,7 @@ async def find_similar_requests(
 
     # Score all candidates (early termination if we get many good matches)
     similarities = []
-    min_similarity_threshold = 0.40  # 40%+ threshold for broader matching
+    min_similarity_threshold = 0.15  # 15%+ threshold — catch even loose semantic matches
 
     for candidate in candidates:
         # Multi-stage similarity calculation
