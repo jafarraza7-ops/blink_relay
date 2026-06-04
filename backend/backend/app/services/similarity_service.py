@@ -250,7 +250,7 @@ async def find_similar_requests(
     if not ref_req:
         return []
 
-    # Query candidates: same pod and request_type
+    # Query candidates: same pod and request_type (limit to prevent timeout)
     try:
         result = await db.execute(
             select(Request).where(
@@ -259,7 +259,7 @@ async def find_similar_requests(
                     Request.pod == ref_req.pod,
                     Request.request_type == ref_req.request_type,
                 )
-            )
+            ).limit(100)  # Limit to 100 candidates to prevent timeout on large pods
         )
         candidates = result.scalars().all()
     except Exception as e:
@@ -269,7 +269,7 @@ async def find_similar_requests(
     if not candidates:
         return []
 
-    # Score all candidates
+    # Score all candidates (early termination if we get many good matches)
     similarities = []
     min_similarity_threshold = 0.40  # 40%+ threshold for broader matching
 
@@ -296,6 +296,9 @@ async def find_similar_requests(
                     similarity_score=round(score * 100, 1),
                 )
             )
+            # Early termination if we have enough results
+            if len(similarities) >= limit * 2:
+                break
 
     # Sort by score descending, return top N
     similarities.sort(key=lambda x: x.similarity_score, reverse=True)
