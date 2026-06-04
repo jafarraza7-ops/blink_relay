@@ -18,23 +18,49 @@ export function FileAttachment({ requestId, canUpload = true }: FileAttachmentPr
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const selectedFiles = e.target.files
+    if (!selectedFiles || selectedFiles.length === 0) return
 
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      toast({ title: 'Unsupported file type', description: `Allowed: PDF, images, Word, Excel, CSV, text`, variant: 'destructive' })
-      return
-    }
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      toast({ title: 'File too large', description: 'Maximum file size is 25 MB', variant: 'destructive' })
-      return
+    // Validate all files before uploading
+    const filesToUpload: File[] = []
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i]
+
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+        toast({
+          title: 'Unsupported file type',
+          description: `${file.name}: Allowed types are PDF, images, Word, Excel, CSV, text`,
+          variant: 'destructive'
+        })
+        continue
+      }
+
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast({
+          title: 'File too large',
+          description: `${file.name}: Maximum file size is 25 MB`,
+          variant: 'destructive'
+        })
+        continue
+      }
+
+      filesToUpload.push(file)
     }
 
-    uploadFile(file, {
-      onSuccess: () => toast({ title: 'File uploaded successfully' }),
+    if (filesToUpload.length === 0) return
+
+    uploadFile(filesToUpload, {
+      onSuccess: (uploadedCount) => {
+        toast({
+          title: 'Files uploaded successfully',
+          description: `${uploadedCount} file${uploadedCount !== 1 ? 's' : ''} uploaded`
+        })
+      },
       onError: (err) => toast({ title: 'Upload failed', description: err.message, variant: 'destructive' }),
     })
-    // Reset input so the same file can be re-selected
+
+    // Reset input so the same files can be re-selected
     if (inputRef.current) inputRef.current.value = ''
   }
 
@@ -77,6 +103,7 @@ export function FileAttachment({ requestId, canUpload = true }: FileAttachmentPr
           <input
             ref={inputRef}
             type="file"
+            multiple
             accept={ALLOWED_FILE_TYPES.join(',')}
             onChange={handleFileChange}
             className="sr-only"
@@ -97,11 +124,11 @@ export function FileAttachment({ requestId, canUpload = true }: FileAttachmentPr
             ) : (
               <>
                 <Paperclip className="h-4 w-4" />
-                Attach file
+                Attach files
               </>
             )}
           </Button>
-          <p className="mt-1 text-xs text-muted-foreground">PDF, images, Word, Excel, CSV · Max 25 MB</p>
+          <p className="mt-1 text-xs text-muted-foreground">Select multiple files · PDF, images, Word, Excel, CSV · Max 25 MB each</p>
         </div>
       )}
     </div>

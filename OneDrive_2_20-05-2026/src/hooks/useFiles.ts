@@ -16,8 +16,12 @@ export function useFiles(requestId: string) {
 
 export function useUploadFile(requestId: string) {
   const queryClient = useQueryClient()
-  return useMutation<Attachment, Error, File>({
-    mutationFn: (file) => filesApi.upload(requestId, file),
+  return useMutation<number, Error, File | File[]>({
+    mutationFn: async (files) => {
+      const fileArray = Array.isArray(files) ? files : [files]
+      await filesApi.uploadMany(requestId, fileArray)
+      return fileArray.length // Return count of uploaded files
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: fileKeys.all(requestId) })
     },
