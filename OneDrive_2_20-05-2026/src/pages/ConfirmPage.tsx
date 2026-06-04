@@ -140,13 +140,13 @@ export function ConfirmPage() {
       )}
 
       {!loadingSimilar && (!similarRequests || similarRequests.length === 0) && (
-        <Card className="border-green-100 bg-green-50">
+        <Card className="border-blue-100 bg-blue-50">
           <CardHeader>
-            <CardTitle className="text-base text-green-900">No Similar Tickets Found</CardTitle>
+            <CardTitle className="text-base text-blue-900">No Similar Tickets Found</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-green-800">
-              Great! Your request appears to be unique. No similar existing tickets were found with 90%+ confidence match.
+            <p className="text-sm text-blue-800">
+              Your request appears to be unique. No similar existing tickets were found.
             </p>
           </CardContent>
         </Card>

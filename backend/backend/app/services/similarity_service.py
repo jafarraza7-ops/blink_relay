@@ -271,7 +271,7 @@ async def find_similar_requests(
 
     # Score all candidates
     similarities = []
-    min_similarity_threshold = 0.65  # 65%+ for 90% accuracy
+    min_similarity_threshold = 0.40  # 40%+ threshold for broader matching
 
     for candidate in candidates:
         # Multi-stage similarity calculation
