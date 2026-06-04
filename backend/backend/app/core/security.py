@@ -61,6 +61,24 @@ class Role(StrEnum):
     READ_ONLY = "ReadOnly"
 
 
+def validate_user_roles(roles: list[str]) -> list[str]:
+    """Enforce role constraints: Requestor and ProductManager are mutually exclusive.
+
+    If a user is assigned ProductManager, remove Requestor (PM > Requestor).
+    If a user is assigned only Requestor, keep it.
+    """
+    if not roles:
+        return roles
+
+    roles_set = set(roles)
+
+    # If user has ProductManager, remove Requestor
+    if Role.PRODUCT_MANAGER in roles_set and Role.REQUESTOR in roles_set:
+        roles_set.discard(Role.REQUESTOR)
+
+    return list(roles_set)
+
+
 class UserClaims(BaseModel):
     oid: Optional[str] # Entra object ID — stable user identifier (None for email users)
     email: str
