@@ -3,6 +3,7 @@
 Finds similar requests by keyword matching on title, business_problem, and affected_area.
 Uses Jaccard similarity (intersection/union of keywords) for scoring.
 """
+import logging
 import re
 import uuid
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.request import Request, RequestStatus
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -110,17 +113,23 @@ async def find_similar_requests(
         return []
 
     # Query all requests with same pod and type (excluding the reference request and completed tickets)
-    result = await db.execute(
-        select(Request).where(
-            and_(
-                Request.id != ref_req_id,
-                Request.pod == ref_req.pod,
-                Request.request_type == ref_req.request_type,
-                Request.status.not_in([RequestStatus.COMPLETED, RequestStatus.CLOSED]),
+    try:
+        result = await db.execute(
+            select(Request).where(
+                and_(
+                    Request.id != ref_req_id,
+                    Request.pod == ref_req.pod,
+                    Request.request_type == ref_req.request_type,
+                    Request.status.not_in([RequestStatus.COMPLETED, RequestStatus.CLOSED]),
+                )
             )
         )
-    )
-    candidates = result.scalars().all()
+        candidates = result.scalars().all()
+    except Exception as e:
+        # If there's an issue loading candidates (e.g., enum deserialization),
+        # return empty list instead of failing
+        logger.warning(f"Could not load candidate requests for similarity matching: {e}")
+        return []
 
     # Score each candidate
     similarities = []
