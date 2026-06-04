@@ -124,3 +124,29 @@ def task_send_request_creation_email(self, email: str, reference_id: str, title:
         _run(_send())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task(bind=True, max_retries=3)
+def task_send_request_cancellation_email(self, email: str, reference_id: str, title: str, user_name: str, cancellation_date: str):
+    """Send request cancellation notification email.
+
+    Args:
+        email: Recipient email address
+        reference_id: Request reference ID
+        title: Request title
+        user_name: Name of the person who cancelled the request
+        cancellation_date: Date the request was cancelled
+    """
+    async def _send():
+        from app.services.email_service import get_request_cancellation_template
+        html_content = get_request_cancellation_template(reference_id, title, user_name, cancellation_date)
+        await NotificationService().send_email(
+            to=email,
+            subject=f"Request Cancelled: {reference_id}",
+            body_html=html_content,
+        )
+
+    try:
+        _run(_send())
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))

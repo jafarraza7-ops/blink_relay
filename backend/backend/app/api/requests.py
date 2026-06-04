@@ -478,17 +478,17 @@ async def cancel_request(
 
     await db.commit()
 
-    # Send email notification
+    # Send cancellation notification email
     try:
-        from app.workers.email_tasks import task_send_status_update_email
-        task_send_status_update_email.delay(
-            str(req.id),
+        from app.workers.email_tasks import task_send_request_cancellation_email
+        from datetime import datetime, timezone
+        cancellation_date = datetime.now(timezone.utc).strftime("%B %d, %Y at %I:%M %p UTC")
+        task_send_request_cancellation_email.delay(
             req.submitter_email,
             req.reference_id,
             req.title,
-            "Cancelled",
             user.name,
-            f"Your request has been cancelled.",
+            cancellation_date,
         )
     except Exception as logger_exc:
         logger.warning(f"Failed to queue cancellation email: {logger_exc}")

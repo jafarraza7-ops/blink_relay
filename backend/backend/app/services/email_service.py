@@ -436,3 +436,69 @@ def get_email_login_template(login_url: str, user_name: str = "Requestor") -> st
     </div>
 </body>
 </html>"""
+
+def get_request_cancellation_template(reference_id: str, title: str, submitted_by: str, cancellation_date: str) -> str:
+    """Request cancellation notification email."""
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f9fafb; margin: 0; padding: 0; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .email-box {{ background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }}
+        .header {{ display: flex; align-items: center; margin-bottom: 30px; }}
+        .logo {{ width: 32px; height: 32px; background: linear-gradient(135deg, #0066cc 0%, #004499 100%); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 10px; }}
+        .brand {{ color: #0066cc; font-size: 16px; font-weight: 600; }}
+        h2 {{ color: #111827; margin: 0 0 10px 0; font-size: 24px; }}
+        p {{ color: #4b5563; font-size: 14px; line-height: 1.6; margin: 15px 0; }}
+        .cancellation-box {{ background: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; border-radius: 4px; margin: 20px 0; }}
+        .detail-row {{ display: flex; justify-content: space-between; margin: 8px 0; padding: 8px 0; }}
+        .detail-label {{ font-weight: 600; color: #111827; }}
+        .detail-value {{ color: #4b5563; }}
+        .status-badge {{ display: inline-block; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; color: white; background-color: #ef4444; }}
+        .footer {{ color: #9ca3af; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="email-box">
+            <div class="header">
+                <div class="logo">⚡</div>
+                <div class="brand">Blink Relay</div>
+            </div>
+            <h2>Request Cancelled</h2>
+            <p>Hi,</p>
+            <p>A request has been cancelled and we wanted to notify you:</p>
+            <div class="cancellation-box">
+                <div class="detail-row">
+                    <span class="detail-label">Reference ID:</span>
+                    <span class="detail-value"><strong>{reference_id}</strong></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Title:</span>
+                    <span class="detail-value">{title}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Cancelled by:</span>
+                    <span class="detail-value">{submitted_by}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Date:</span>
+                    <span class="detail-value">{cancellation_date}</span>
+                </div>
+                <div style="margin-top: 12px;">
+                    <span class="status-badge">CANCELLED</span>
+                </div>
+            </div>
+            <p>This request is no longer being processed. If you have any questions, please reach out to the request submitter or your team lead.</p>
+            <div class="footer">
+                <p>Blink Relay • Product Intake System</p>
+                <p>This is an automated message. Please do not reply to this email.</p>
+                <p>© 2026 Blink Charging. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>"""
