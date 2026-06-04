@@ -360,8 +360,20 @@ async def list_my_requests(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=1000),
 ) -> RequestListResponse:
-    """Return the authenticated user's own submitted requests."""
-    filters = [Request.submitter_oid == user.oid]
+    """Return the authenticated user's own submitted requests.
+
+    For Azure AD users: filter by submitter_oid
+    For email users: filter by submitter_email
+    """
+    from sqlalchemy import or_
+
+    # Match either by OID (Azure AD) or email (email login)
+    if user.oid:
+        submitter_filter = Request.submitter_oid == user.oid
+    else:
+        submitter_filter = Request.submitter_email == user.email
+
+    filters = [submitter_filter]
     if status_filter:
         filters.append(Request.status == status_filter)
     if request_type:

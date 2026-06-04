@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 from collections import Counter
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.request import Request, RequestStatus
@@ -254,7 +254,8 @@ async def find_similar_requests(
     if not ref_req:
         return []
 
-    # Query ALL candidates (no pod/type restrictions) to find cross-domain similarities
+    # Query candidates (no pod/type restrictions) to find cross-domain similarities
+    # Limit to 50 for performance (scoring 500+ can exceed frontend timeout during submission)
     # Only include requests with a reference_id (official, submitted requests)
     try:
         result = await db.execute(
@@ -263,7 +264,7 @@ async def find_similar_requests(
                     Request.id != ref_req_id,
                     Request.reference_id.isnot(None),  # Only requests with reference IDs
                 )
-            ).limit(500)
+            ).order_by(desc(Request.created_at)).limit(50)
         )
         candidates = result.scalars().all()
     except Exception as e:

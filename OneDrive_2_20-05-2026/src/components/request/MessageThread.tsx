@@ -5,9 +5,9 @@ const BODY_LIMIT = 200
 
 export function TruncatedBody({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false)
-  if (text.length <= BODY_LIMIT) return <p className="whitespace-pre-wrap">{text}</p>
+  if (text.length <= BODY_LIMIT) return <p className="whitespace-pre-wrap break-words overflow-hidden">{text}</p>
   return (
-    <p className="whitespace-pre-wrap">
+    <p className="whitespace-pre-wrap break-words overflow-hidden">
       {expanded ? text : `${text.slice(0, BODY_LIMIT)}…`}
       <button
         onClick={() => setExpanded((v) => !v)}

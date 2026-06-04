@@ -121,19 +121,25 @@ async def post_message(
         else:
             is_from_requestor = user.email == req.submitter_email
 
+        logger.info(f"DEBUG: user.oid={user.oid}, req.submitter_oid={req.submitter_oid}, user.email={user.email}, req.submitter_email={req.submitter_email}, is_from_requestor={is_from_requestor}")
+
         message_preview = payload.body[:100].replace("\n", " ")
 
         if not is_from_requestor:  # Message from reviewer to requestor
-            logger.info(f"📧 Queuing email to requestor {req.submitter_email} from {user.email}")
-            task_send_new_message_email.delay(
-                req.submitter_email,
-                req.reference_id,
-                req.title,
-                user.name,
-                message_preview,
-                req.submitter_name,
-                f"{settings.FRONTEND_URL}/requests/{req.id}",
-            )
+            # Don't send email if the reviewer is the same person as the requestor
+            if user.email != req.submitter_email:
+                logger.info(f"📧 Queuing email to requestor {req.submitter_email} from {user.email}")
+                task_send_new_message_email.delay(
+                    req.submitter_email,
+                    req.reference_id,
+                    req.title,
+                    user.name,
+                    message_preview,
+                    req.submitter_name,
+                    f"{settings.FRONTEND_URL}/requests/{req.id}",
+                )
+            else:
+                logger.info(f"ℹ️ Skipping self-email: {user.email} is both reviewer and requestor")
         else:  # Message from requestor to reviewers - notify all PMs/reviewers
             from app.models.request import User
 

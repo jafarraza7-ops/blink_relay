@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.request import EmailLoginToken, User
 
-TOKEN_EXPIRY_MINUTES = 15
+TOKEN_EXPIRY_MINUTES = 60
 TOKEN_LENGTH_BYTES = 32  # 256 bits
 
 

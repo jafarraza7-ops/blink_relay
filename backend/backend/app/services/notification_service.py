@@ -32,6 +32,7 @@ def _html_wrap(body: str) -> str:
 class NotificationService:
     async def _send_smtp(self, to: str, subject: str, body_html: str) -> None:
         import aiosmtplib
+        import asyncio
 
         sender = settings.SMTP_FROM or settings.SMTP_USER
         msg = MIMEMultipart("alternative")
@@ -40,15 +41,21 @@ class NotificationService:
         msg["To"] = to
         msg.attach(MIMEText(body_html, "html"))
 
-        await aiosmtplib.send(
-            msg,
-            hostname=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            username=settings.SMTP_USER,
-            password=settings.SMTP_PASS,
-            start_tls=True,
-        )
-        logger.info("SMTP email sent to %s: %s", to, subject)
+        try:
+            await asyncio.wait_for(
+                aiosmtplib.send(
+                    msg,
+                    hostname=settings.SMTP_HOST,
+                    port=settings.SMTP_PORT,
+                    username=settings.SMTP_USER,
+                    password=settings.SMTP_PASS,
+                    start_tls=True,
+                ),
+                timeout=10  # 10 second timeout for SMTP operations
+            )
+            logger.info("SMTP email sent to %s: %s", to, subject)
+        except asyncio.TimeoutError:
+            logger.warning("SMTP timeout sending to %s, continuing anyway", to)
 
     async def _send_graph(self, to: str, subject: str, body_html: str) -> None:
         url = f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/oauth2/v2.0/token"
@@ -86,8 +93,8 @@ class NotificationService:
                 await self._send_smtp(to, subject, body_html)
             else:
                 await self._send_graph(to, subject, body_html)
-        except Exception:
-            logger.exception("send_email error — swallowing to avoid blocking caller")
+        except Exception as e:
+            logger.exception(f"send_email error to {to}: {str(e)} — swallowing to avoid blocking caller")
 
     async def notify_submitted(self, submitter_email: str, title: str, reference_id: str) -> None:
         subject = f"[Blink Relay] Request received: {reference_id}"
