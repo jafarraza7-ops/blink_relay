@@ -155,7 +155,8 @@ async def find_similar_requests(
     if not ref_req:
         return []
 
-    # Query all requests with same pod and type (excluding the reference request and completed tickets)
+    # Query all requests with same pod and type (excluding only the reference request itself)
+    # Include all statuses so users can see similar tickets regardless of progress
     # Note: We filter by pod and request_type to ensure we're comparing like with like
     try:
         result = await db.execute(
@@ -164,7 +165,6 @@ async def find_similar_requests(
                     Request.id != ref_req_id,
                     Request.pod == ref_req.pod,
                     Request.request_type == ref_req.request_type,
-                    Request.status.not_in([RequestStatus.COMPLETED, RequestStatus.CLOSED]),
                 )
             )
         )
