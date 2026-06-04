@@ -255,10 +255,15 @@ async def find_similar_requests(
         return []
 
     # Query ALL candidates (no pod/type restrictions) to find cross-domain similarities
-    # This allows finding related requests across different pods and types
+    # Only include requests with a reference_id (official, submitted requests)
     try:
         result = await db.execute(
-            select(Request).where(Request.id != ref_req_id).limit(500)  # Increased limit for broader search
+            select(Request).where(
+                and_(
+                    Request.id != ref_req_id,
+                    Request.reference_id.isnot(None),  # Only requests with reference IDs
+                )
+            ).limit(500)
         )
         candidates = result.scalars().all()
     except Exception as e:
