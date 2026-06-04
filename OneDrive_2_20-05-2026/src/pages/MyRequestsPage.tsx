@@ -50,7 +50,7 @@ const REFRESH_MS = 30_000
 // "Closed" is omitted — it's a terminal archive state the requestor doesn't need to filter on
 const STATUS_OPTIONS: RequestStatus[] = [
   'Submitted', 'InReview', 'AwaitingInfo', 'InfoReceived',
-  'Approved', 'InProgress', 'Completed', 'Rejected',
+  'Approved', 'InProgress', 'Completed', 'Rejected', 'Cancelled',
 ]
 
 // Statuses that count toward the "Pending review" stat card

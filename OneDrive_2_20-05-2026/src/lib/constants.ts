@@ -56,6 +56,7 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
   InProgress: 'In Progress',
   Completed: 'Completed',
   Closed: 'Closed',
+  Cancelled: 'Cancelled',
 }
 
 // ── Badge / pill color maps (inactive) ───────────────────────────────────────
@@ -72,6 +73,7 @@ export const STATUS_COLORS: Record<RequestStatus, string> = {
   InProgress: 'bg-violet-100 text-violet-700 border-violet-200',
   Completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   Closed: 'bg-gray-100 text-gray-500 border-gray-200',
+  Cancelled: 'bg-orange-100 text-orange-700 border-orange-200',
 }
 
 export const POD_COLORS: Record<Pod, string> = {
