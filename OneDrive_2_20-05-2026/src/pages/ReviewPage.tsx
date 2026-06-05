@@ -221,20 +221,22 @@ export function ReviewPage() {
                     </Select>
 
                     {isRejecting && (
-                  <>
-                    <Select value={rejectReason} onValueChange={setRejectReason}>
-                      <SelectTrigger><SelectValue placeholder="Select rejection reason" /></SelectTrigger>
-                      <SelectContent>
-                        {REJECTION_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Textarea
-                      placeholder="Optional comment for requestor…"
-                      value={rejectComment}
-                      onChange={(e) => setRejectComment(e.target.value)}
-                      rows={3}
-                      className="resize-none"
-                    />
+                      <>
+                        <Select value={rejectReason} onValueChange={setRejectReason}>
+                          <SelectTrigger><SelectValue placeholder="Select rejection reason" /></SelectTrigger>
+                          <SelectContent>
+                            {REJECTION_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Textarea
+                          placeholder="Optional comment for requestor…"
+                          value={rejectComment}
+                          onChange={(e) => setRejectComment(e.target.value)}
+                          rows={3}
+                          className="resize-none"
+                        />
+                      </>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground p-3 bg-muted rounded-md">
