@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Navigate, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, ExternalLink, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -49,6 +49,16 @@ export function ReviewPage() {
   const isRejecting = newStatus === 'Rejected'
 
   const clarify = useSendClarification(id ?? '')
+
+  // IMPROVEMENT: Sync status dropdown with current request status
+  // When request status changes, update the "Update Status" dropdown to show current status
+  useEffect(() => {
+    if (req) {
+      setNewStatus('')
+      setRejectReason('')
+      setRejectComment('')
+    }
+  }, [req?.status])
 
   if (!id) return <Navigate to="/dashboard" replace />
 
