@@ -34,3 +34,18 @@ export function formatBytes(bytes: number): string {
 export function truncate(str: string, maxLength: number): string {
   return str.length > maxLength ? `${str.slice(0, maxLength)}…` : str
 }
+
+/**
+ * Type guard to ensure region is always a string array.
+ * Handles legacy cases where region might be a string or mixed type.
+ * Used in CSV export and data transformations to prevent CSV corruption.
+ */
+export function ensureRegionArray(region: unknown): string[] {
+  if (Array.isArray(region)) {
+    return region.filter((r) => typeof r === 'string')
+  }
+  if (typeof region === 'string' && region) {
+    return [region]
+  }
+  return []
+}

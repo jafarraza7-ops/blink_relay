@@ -25,7 +25,7 @@ import { Input } from '@/components/ui/input'
 import { RequestTable } from '@/components/request/RequestTable'
 import { useRequests } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
-import { cn } from '@/lib/utils'
+import { cn, ensureRegionArray } from '@/lib/utils'
 import {
   PODS, PRIORITIES, REQUEST_TYPES, REQUEST_STATUSES, STATUS_LABELS,
   STATUS_COLORS, STATUS_ACTIVE_COLORS,
@@ -155,7 +155,7 @@ export function DashboardPage() {
           r.pod,
           r.priority,
           // region is string[] post-migration 007; guard against legacy string values
-          Array.isArray(r.region) ? r.region.join(', ') : String(r.region),
+          ensureRegionArray(r.region).join(', '),
           r.submitter_name,
           r.submitter_email,
           r.affected_area,
