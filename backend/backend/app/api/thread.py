@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.security import Role, UserClaims, get_current_user, get_optional_user, require_role
+from app.core.security import Role, UserClaims, get_current_user, get_optional_user, require_role, is_same_user
 from app.models.request import (
     ALLOWED_TRANSITIONS,
     AuditLog,
@@ -114,12 +114,8 @@ async def post_message(
     try:
         settings = get_settings()
         # Check if message sender is the requestor
-        # For Azure AD users: compare OIDs (if both have OIDs)
-        # For email users: compare emails
-        if user.oid and req.submitter_oid:
-            is_from_requestor = user.oid == req.submitter_oid
-        else:
-            is_from_requestor = user.email == req.submitter_email
+        # Use is_same_user to handle both OID and email auth methods
+        is_from_requestor = is_same_user(user, req.submitter_oid, req.submitter_email)
 
         # IMPROVEMENT: Detect message direction and determine email recipients
         # Handles both Azure AD users (OID-based) and email users (email-based)

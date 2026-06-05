@@ -321,3 +321,14 @@ def validate_email_jwt(token: str) -> dict:
     except JWTError as exc:
         logger.warning("Email JWT validation failed: %s", exc)
         raise JWTError(str(exc))
+
+
+def is_same_user(user: UserClaims, stored_oid: Optional[str], stored_email: str) -> bool:
+    """Check if user matches stored identifiers (supports both OID and email auth).
+
+    Handles dual authentication: Azure AD users matched by OID, email users by email.
+    Used to verify ownership across different auth methods.
+    """
+    if user.oid and stored_oid:
+        return user.oid == stored_oid
+    return user.email == stored_email

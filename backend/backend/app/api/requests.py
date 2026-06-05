@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.security import Role, UserClaims, get_current_user, get_optional_user, require_role
+from app.core.security import Role, UserClaims, get_current_user, get_optional_user, require_role, is_same_user
 from app.models.request import (
     AuditLog,
     Message,
@@ -477,11 +477,8 @@ async def cancel_request(
     # Only the requestor can cancel their own request (or admins)
     is_admin = user.roles and Role.ADMIN in user.roles
     if not is_admin:
-        # For email users: compare emails, for Azure AD: compare OIDs
-        if user.oid and req.submitter_oid:
-            is_requestor = user.oid == req.submitter_oid
-        else:
-            is_requestor = user.email == req.submitter_email
+        # Use is_same_user to check both OID and email auth methods
+        is_requestor = is_same_user(user, req.submitter_oid, req.submitter_email)
 
         if not is_requestor:
             raise HTTPException(status_code=403, detail="Only the requestor can cancel this request")
