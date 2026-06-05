@@ -9,21 +9,20 @@ import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from app.core.config import get_settings
+from app.models.request import JIRA_PRIORITY_MAP, Priority
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-_PRIORITY_MAP: dict[str, str] = {
-    "Critical": "P0 - CRITICAL",
-    "High": "P1 - HIGH",
-    "Medium": "P2 - MEDIUM",
-    "Low": "P3 - LOW",
-}
-
-
 def map_priority(priority: str) -> str:
-    return _PRIORITY_MAP.get(priority, "P2 - MEDIUM")
+    """Map priority string to Jira label using centralized JIRA_PRIORITY_MAP."""
+    try:
+        priority_enum = Priority(priority)
+        return JIRA_PRIORITY_MAP.get(priority_enum, "P2 - MEDIUM")
+    except ValueError:
+        # Fallback for invalid priority strings
+        return "P2 - MEDIUM"
 
 
 class JiraServiceError(Exception):
@@ -287,13 +286,7 @@ class JiraService:
             approver_name=approver_name,
             approver_email=approver_email,
         )
-        _priority_map = {
-            "CRITICAL": "P0 - CRITICAL",
-            "HIGH": "P1 - HIGH",
-            "MEDIUM": "P2 - MEDIUM",
-            "LOW": "P3 - LOW",
-        }
-        jira_priority = _priority_map.get(priority.upper(), "P2 - MEDIUM")
+        jira_priority = map_priority(priority)
         if request_type == "Defect":
             return await self.create_bug_ticket(project_key, title, adf, jira_priority, labels, component, assignee_account_id)
         return await self.create_epic(project_key, title, adf, jira_priority, labels, component, assignee_account_id)

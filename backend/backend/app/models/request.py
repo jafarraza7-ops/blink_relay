@@ -91,6 +91,18 @@ class RequestStatus(StrEnum):
     CANCELLED = "Cancelled"
 
 
+# ── Priority mapping ──────────────────────────────────────────────────────────
+# Maps internal Priority enum to Jira priority labels (P0–P3 levels).
+# Single source of truth — used by jira_service.py when creating/updating tickets.
+
+JIRA_PRIORITY_MAP: dict[Priority, str] = {
+    Priority.CRITICAL: "P0 - CRITICAL",
+    Priority.HIGH: "P1 - HIGH",
+    Priority.MEDIUM: "P2 - MEDIUM",
+    Priority.LOW: "P3 - LOW",
+}
+
+
 # ── State machine ─────────────────────────────────────────────────────────────
 
 # Defines every legal status transition. Endpoints call _validate_transition()
