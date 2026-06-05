@@ -34,6 +34,33 @@ import type {
   User,
 } from './types'
 
+// ── Centralized API Endpoint Routes ───────────────────────────────────────────
+/**
+ * Centralized API endpoint routes.
+ * Using a constant ensures all route changes are made in one place,
+ * preventing typos and making it easier to refactor endpoints.
+ */
+const API_ROUTES = {
+  AUTH: '/auth/me',
+  REQUESTS: '/requests',
+  REQUESTS_MINE: '/requests/mine',
+  REQUEST_DETAIL: (id: string) => `/requests/${id}`,
+  REQUEST_SIMILAR: (id: string) => `/requests/${id}/similar`,
+  REQUEST_STATUS: (id: string) => `/requests/${id}/status`,
+  REQUEST_APPROVE: (id: string) => `/requests/${id}/approve`,
+  REQUEST_REJECT: (id: string) => `/requests/${id}/reject`,
+  REQUEST_CANCEL: (id: string) => `/requests/${id}/cancel`,
+  REQUEST_EXPORT: '/requests/export',
+  REQUEST_MESSAGES: (id: string) => `/requests/${id}/messages`,
+  REQUEST_CLARIFY: (id: string) => `/requests/${id}/clarify`,
+  REQUEST_FILES: (id: string) => `/requests/${id}/files`,
+  REQUEST_FILE_DELETE: (id: string, fileId: string) => `/requests/${id}/files/${fileId}`,
+  USERS: '/users',
+  RESPOND: (id: string) => `/requests/${id}/respond`,
+} as const
+
+export type ApiRoute = typeof API_ROUTES
+
 // ── Token injection ───────────────────────────────────────────────────────────
 
 // Token getter is injected by useAuth so api.ts has no direct MSAL dependency.
@@ -84,14 +111,14 @@ apiClient.interceptors.response.use(
 
 export const authApi = {
   me: (): Promise<User> =>
-    apiClient.get<User>('/auth/me').then((r) => r.data),
+    apiClient.get<User>(API_ROUTES.AUTH).then((r) => r.data),
 }
 
 // ── Requests ──────────────────────────────────────────────────────────────────
 
 export const requestsApi = {
   create: (payload: RequestCreate): Promise<BlinkRequest> =>
-    apiClient.post<BlinkRequest>('/requests', payload).then((r) => r.data),
+    apiClient.post<BlinkRequest>(API_ROUTES.REQUESTS, payload).then((r) => r.data),
 
   /**
    * Fetch a paginated list of all requests (reviewer/PM view).
@@ -108,7 +135,7 @@ export const requestsApi = {
     if (filters.search) params.search = filters.search
     if (filters.page) params.page = filters.page
     if (filters.page_size) params.page_size = filters.page_size
-    return apiClient.get<RequestListResponse>('/requests', { params }).then((r) => r.data)
+    return apiClient.get<RequestListResponse>(API_ROUTES.REQUESTS, { params }).then((r) => r.data)
   },
 
   /** Requestor-scoped list — only returns requests owned by the current user. */
@@ -120,7 +147,7 @@ export const requestsApi = {
     if (filters.search) params.search = filters.search
     if (filters.page) params.page = filters.page
     if (filters.page_size) params.page_size = filters.page_size
-    return apiClient.get<RequestListResponse>('/requests/mine', { params }).then((r) => r.data)
+    return apiClient.get<RequestListResponse>(API_ROUTES.REQUESTS_MINE, { params }).then((r) => r.data)
   },
 
   /**
@@ -137,18 +164,18 @@ export const requestsApi = {
     if (filters.priority) params.priority = filters.priority
     if (filters.search) params.search = filters.search
     return apiClient
-      .get('requests/export', { params, responseType: 'blob' })
+      .get(API_ROUTES.REQUEST_EXPORT, { params, responseType: 'blob' })
       .then((r) => r.data as Blob)
   },
 
   get: (id: string): Promise<BlinkRequest> =>
-    apiClient.get<BlinkRequest>(`/requests/${id}`).then((r) => r.data),
+    apiClient.get<BlinkRequest>(API_ROUTES.REQUEST_DETAIL(id)).then((r) => r.data),
 
   getSimilar: (id: string, limit: number = 5): Promise<SimilarRequest[]> =>
-    apiClient.get<SimilarRequest[]>(`/requests/${id}/similar`, { params: { limit } }).then((r) => r.data),
+    apiClient.get<SimilarRequest[]>(API_ROUTES.REQUEST_SIMILAR(id), { params: { limit } }).then((r) => r.data),
 
   update: (id: string, payload: RequestUpdate): Promise<BlinkRequest> =>
-    apiClient.patch<BlinkRequest>(`/requests/${id}`, payload).then((r) => r.data),
+    apiClient.patch<BlinkRequest>(API_ROUTES.REQUEST_DETAIL(id), payload).then((r) => r.data),
 }
 
 // ── Workflow ──────────────────────────────────────────────────────────────────
@@ -159,38 +186,38 @@ export const requestsApi = {
 
 export const workflowApi = {
   updateStatus: (id: string, payload: StatusUpdatePayload): Promise<{ id: string; status: string }> =>
-    apiClient.patch(`/requests/${id}/status`, payload).then((r) => r.data),
+    apiClient.patch(API_ROUTES.REQUEST_STATUS(id), payload).then((r) => r.data),
 
   approve: (id: string, payload: ApprovePayload = {}): Promise<{ id: string; status: string }> =>
-    apiClient.post(`/requests/${id}/approve`, payload).then((r) => r.data),
+    apiClient.post(API_ROUTES.REQUEST_APPROVE(id), payload).then((r) => r.data),
 
   /** Uses /reject (not /status) so the backend can fire the rejection email notification. */
   reject: (id: string, payload: RejectPayload): Promise<{ id: string; status: string }> =>
-    apiClient.post(`/requests/${id}/reject`, payload).then((r) => r.data),
+    apiClient.post(API_ROUTES.REQUEST_REJECT(id), payload).then((r) => r.data),
 
   /** Cancel a request — only available for requestors on their own requests. */
   cancel: (id: string): Promise<{ id: string; status: string }> =>
-    apiClient.post(`/requests/${id}/cancel`, {}).then((r) => r.data),
+    apiClient.post(API_ROUTES.REQUEST_CANCEL(id), {}).then((r) => r.data),
 }
 
 // ── Thread ────────────────────────────────────────────────────────────────────
 
 export const threadApi = {
   list: (requestId: string): Promise<Message[]> =>
-    apiClient.get<Message[]>(`/requests/${requestId}/messages`).then((r) => r.data),
+    apiClient.get<Message[]>(API_ROUTES.REQUEST_MESSAGES(requestId)).then((r) => r.data),
 
   post: (requestId: string, payload: MessageCreate): Promise<Message> =>
-    apiClient.post<Message>(`/requests/${requestId}/messages`, payload).then((r) => r.data),
+    apiClient.post<Message>(API_ROUTES.REQUEST_MESSAGES(requestId), payload).then((r) => r.data),
 
   clarify: (requestId: string, payload: ClarifyPayload): Promise<Message> =>
-    apiClient.post<Message>(`/requests/${requestId}/clarify`, payload).then((r) => r.data),
+    apiClient.post<Message>(API_ROUTES.REQUEST_CLARIFY(requestId), payload).then((r) => r.data),
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
 
 export const filesApi = {
   list: (requestId: string): Promise<Attachment[]> =>
-    apiClient.get<Attachment[]>(`/requests/${requestId}/files`).then((r) => r.data),
+    apiClient.get<Attachment[]>(API_ROUTES.REQUEST_FILES(requestId)).then((r) => r.data),
 
   upload: (requestId: string, file: File): Promise<Attachment> =>
     filesApi.uploadMany(requestId, [file]).then((arr) => arr[0]),
@@ -203,7 +230,7 @@ export const filesApi = {
       formData.append('files', file)
     }
     return apiClient
-      .post<Attachment[]>(`/requests/${requestId}/files`, formData, {
+      .post<Attachment[]>(API_ROUTES.REQUEST_FILES(requestId), formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       } as AxiosRequestConfig)
       .then((r) => r.data)
@@ -211,7 +238,7 @@ export const filesApi = {
 
   // FEATURE: Allow requestors to delete incorrectly uploaded attachments
   delete: (requestId: string, attachmentId: string): Promise<void> =>
-    apiClient.delete(`/requests/${requestId}/files/${attachmentId}`).then(() => undefined),
+    apiClient.delete(API_ROUTES.REQUEST_FILE_DELETE(requestId, attachmentId)).then(() => undefined),
 }
 
 
@@ -221,7 +248,7 @@ export const usersApi = {
   list: (q?: string): Promise<Array<{ oid: string; email: string; display_name: string }>> => {
     const params: Record<string, string> = {}
     if (q) params.q = q
-    return apiClient.get('/users', { params }).then((r) => r.data)
+    return apiClient.get(API_ROUTES.USERS, { params }).then((r) => r.data)
   },
 }
 // ── Respond (public — no auth required) ──────────────────────────────────────
@@ -230,7 +257,7 @@ export const usersApi = {
 
 export const respondApi = {
   respond: (requestId: string, payload: RespondPayload): Promise<{ id: string; status: string }> =>
-    apiClient.post(`/requests/${requestId}/respond`, payload).then((r) => r.data),
+    apiClient.post(API_ROUTES.RESPOND(requestId), payload).then((r) => r.data),
 }
 
 export default apiClient
