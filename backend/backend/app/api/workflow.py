@@ -117,9 +117,8 @@ async def update_status(
     """Move a request to any valid next status. Used for non-approve/reject transitions
     (e.g. InReview → AwaitingInfo, or InProgress → Completed).
 
-    IMPROVEMENT: Create Jira ticket when transitioning to APPROVED
-    Reasoning: Ensures Jira ticket is created regardless of approval method (approve vs status_change).
-    Requestors should see the Jira ticket after approval.
+    IMPROVEMENT: Ensure Jira ticket is created regardless of approval method (approve vs status_change).
+    This prevents requestors from seeing empty "Dev ticket" column after approval via generic status endpoint.
     """
     req = await _get_request_or_404(request_id, db)
     _validate_transition(req.status, payload.status)
