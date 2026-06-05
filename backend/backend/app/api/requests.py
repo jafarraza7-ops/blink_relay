@@ -31,7 +31,7 @@ import io
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -75,6 +75,119 @@ async def _ensure_reference_id(req: Request, db: AsyncSession) -> None:
     )
     count = result.scalar_one() or 0
     req.reference_id = f"{prefix}{(count + 1):04d}"
+
+
+def _build_request_filters(filters: dict, user: UserClaims, exclude_pm_requests: bool = False) -> list:
+    """Build SQLAlchemy filter list for request queries.
+
+    Consolidates PM-exclusion and pod/status filtering logic across endpoints.
+    When exclude_pm_requests=True and user is ProductManager, filters out requests
+    where the submitter matches the current user (prevents PMs from seeing their own requests).
+    Supports both OID-based (Azure AD) and email-based authentication.
+
+    Args:
+        filters: Dictionary containing optional filter keys: pod, status, type, priority, search
+        user: Current user claims with roles, oid, and email
+        exclude_pm_requests: If True, PMs don't see their own submitted requests
+
+    Returns:
+        List of SQLAlchemy filter conditions ready to pass to .where()
+    """
+    conditions = []
+
+    # PM dashboard filtering: exclude own requests
+    if exclude_pm_requests and "ProductManager" in user.roles:
+        if user.oid:
+            conditions.append(Request.submitter_oid != user.oid)
+        else:
+            conditions.append(Request.submitter_email != user.email)
+
+    # Pod filtering
+    if filters.get("pod"):
+        conditions.append(Request.pod == filters["pod"])
+
+    # Status filtering
+    if filters.get("status"):
+        conditions.append(Request.status == filters["status"])
+
+    # Type filtering
+    if filters.get("type"):
+        conditions.append(Request.request_type == filters["type"])
+
+    # Priority filtering
+    if filters.get("priority"):
+        conditions.append(Request.priority == filters["priority"])
+
+    # Search/title filtering
+    if filters.get("search"):
+        conditions.append(Request.title.ilike(f"%{filters['search']}%"))
+
+    return conditions
+
+
+async def _queue_creation_tasks(req: Request, settings, logger) -> None:
+    """Queue background tasks after request creation (JSM, Jira, notifications).
+
+    Each task is queued independently with its own error handling so that
+    failure to queue one task doesn't prevent queuing others.
+    Logs warnings for failures but never raises — task queuing is best-effort.
+
+    Args:
+        req: The newly created Request model instance
+        settings: Application settings (for FRONTEND_URL)
+        logger: Logger instance for warnings on failure
+    """
+    # JSM ticket creation
+    try:
+        task_create_jsm_ticket.delay(str(req.id))
+    except Exception:
+        _log_task_error("task_create_jsm_ticket", str(req.id), logger)
+
+    # Status notification (submitter)
+    try:
+        task_send_status_notification.delay(str(req.id))
+    except Exception:
+        _log_task_error("task_send_status_notification", str(req.id), logger)
+
+    # Creation email with confirmation link
+    try:
+        request_url = f"{settings.FRONTEND_URL}/requests/{req.id}"
+        task_send_request_creation_email.delay(
+            req.submitter_email,
+            req.reference_id,
+            req.title,
+            req.request_type.value,
+            req.priority.value,
+            req.submitter_name,
+            request_url,
+        )
+    except Exception:
+        _log_task_error("task_send_request_creation_email", str(req.id), logger)
+
+    # AI-based pod routing (only if submitter couldn't identify pod)
+    if req.pod == Pod.UNKNOWN:
+        try:
+            route_request_to_pod.delay(str(req.id))
+        except Exception:
+            _log_task_error("route_request_to_pod", str(req.id), logger)
+
+
+def _log_task_error(task_name: str, req_id: str, logger) -> None:
+    """Log a task queueing failure with consistent formatting and detail level.
+
+    Used across all endpoints when Celery task.delay() fails. Logs at warning
+    level with exception info for debugging, but is non-fatal since task
+    queueing is best-effort.
+
+    Args:
+        task_name: Name of the Celery task that failed to queue
+        req_id: Request ID for context
+        logger: Logger instance to write to
+    """
+    logger.warning(
+        f"Failed to queue {task_name} for request {req_id} — task may be retried later",
+        exc_info=True
+    )
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -209,36 +322,8 @@ async def create_request(
     await _ensure_reference_id(req, db)
     await db.commit()  # commit before eager tasks read the same DB
 
-    try:
-        task_create_jsm_ticket.delay(str(req.id))
-    except Exception:
-        logger.warning("task_create_jsm_ticket raised in eager mode — non-fatal", exc_info=True)
-    try:
-        task_send_status_notification.delay(str(req.id))
-    except Exception:
-        logger.warning("task_send_status_notification raised in eager mode — non-fatal", exc_info=True)
-    try:
-        settings = get_settings()
-        request_url = f"{settings.FRONTEND_URL}/requests/{req.id}"
-        task_send_request_creation_email.delay(
-            submitter_email,
-            req.reference_id,
-            req.title,
-            req.request_type.value,
-            req.priority.value,
-            submitter_name,
-            request_url,
-        )
-    except Exception:
-        logger.warning("task_send_request_creation_email raised in eager mode — non-fatal", exc_info=True)
-    # Only trigger AI routing when the submitter couldn't identify the pod.
-    # The routing service uses keyword matching to pick the best pod and only
-    # updates the request if confidence >= 65%.
-    if req.pod == Pod.UNKNOWN:
-        try:
-            route_request_to_pod.delay(str(req.id))
-        except Exception:
-            logger.warning("route_request_to_pod raised in eager mode — non-fatal", exc_info=True)
+    settings = get_settings()
+    await _queue_creation_tasks(req, settings, logger)
 
     return RequestResponse.model_validate(req)
 
@@ -262,26 +347,14 @@ async def list_requests(
     Reasoning: PMs should use 'My Requests' tab to see requests they created.
     Dashboard is for reviewing OTHER requests. PodReviewers see all requests.
     """
-    filters = []
-    if pod:
-        filters.append(Request.pod == pod)
-    if status_filter:
-        filters.append(Request.status == status_filter)
-    if request_type:
-        filters.append(Request.request_type == request_type)
-    if priority:
-        filters.append(Request.priority == priority)
-    if search:
-        filters.append(Request.title.ilike(f"%{search}%"))
-
-    # FILTER: If user is ProductManager, exclude their own requests
-    # PodReviewers see all requests for their area
-    if "ProductManager" in user.roles:
-        # Exclude requests created by this PM (match by OID or email)
-        if user.oid:
-            filters.append(Request.submitter_oid != user.oid)
-        if user.email:
-            filters.append(Request.submitter_email != user.email)
+    filter_params = {
+        "pod": pod,
+        "status": status_filter,
+        "type": request_type,
+        "priority": priority,
+        "search": search,
+    }
+    filters = _build_request_filters(filter_params, user, exclude_pm_requests=True)
 
     count_result = await db.execute(select(func.count()).select_from(Request).where(*filters))
     total = count_result.scalar_one()
@@ -315,24 +388,14 @@ async def export_requests_csv(
     IMPROVEMENT: PMs don't export their own requests
     Reasoning: Consistent with dashboard filtering - export matches what they see.
     """
-    filters = []
-    if pod:
-        filters.append(Request.pod == pod)
-    if status_filter:
-        filters.append(Request.status == status_filter)
-    if request_type:
-        filters.append(Request.request_type == request_type)
-    if priority:
-        filters.append(Request.priority == priority)
-    if search:
-        filters.append(Request.title.ilike(f"%{search}%"))
-
-    # FILTER: If user is ProductManager, exclude their own requests (same as list_requests)
-    if "ProductManager" in user.roles:
-        if user.oid:
-            filters.append(Request.submitter_oid != user.oid)
-        if user.email:
-            filters.append(Request.submitter_email != user.email)
+    filter_params = {
+        "pod": pod,
+        "status": status_filter,
+        "type": request_type,
+        "priority": priority,
+        "search": search,
+    }
+    filters = _build_request_filters(filter_params, user, exclude_pm_requests=True)
 
     result = await db.execute(
         select(Request).where(*filters).order_by(Request.created_at.desc())
@@ -394,14 +457,13 @@ async def list_my_requests(
     This ensures users only see requests they created, regardless of auth method.
     Fixes issue where email users saw all email-authenticated requests.
     """
-    from sqlalchemy import or_
-
-    # IMPROVEMENT: Match either by OID (Azure AD) or email (email login)
-    # Azure AD users have OID; email users have NULL OID but have email
+    # Build submitter filter using both OID and email for backward compatibility
+    # (handles users who authenticated via either method).
+    submitter_filters = []
     if user.oid:
-        submitter_filter = Request.submitter_oid == user.oid
-    else:
-        submitter_filter = Request.submitter_email == user.email
+        submitter_filters.append(Request.submitter_oid == user.oid)
+    submitter_filters.append(Request.submitter_email == user.email)
+    submitter_filter = or_(*submitter_filters) if len(submitter_filters) > 1 else submitter_filters[0]
 
     filters = [submitter_filter]
     if status_filter:
@@ -520,7 +582,6 @@ async def cancel_request(
     # Send cancellation notification email
     try:
         from app.workers.email_tasks import task_send_request_cancellation_email
-        from datetime import datetime, timezone
         cancellation_date = datetime.now(timezone.utc).strftime("%B %d, %Y at %I:%M %p UTC")
         task_send_request_cancellation_email.delay(
             req.submitter_email,
@@ -529,15 +590,15 @@ async def cancel_request(
             user.name,
             cancellation_date,
         )
-    except Exception as logger_exc:
-        logger.warning(f"Failed to queue cancellation email: {logger_exc}")
+    except Exception:
+        _log_task_error("task_send_request_cancellation_email", str(req.id), logger)
 
     # Add comment to JSM
     try:
         from app.workers.tasks import task_jsm_add_comment
         task_jsm_add_comment.delay(str(req.id), f"Request cancelled by {user.name}.", False)
-    except Exception as logger_exc:
-        logger.warning(f"Failed to queue JSM comment: {logger_exc}")
+    except Exception:
+        _log_task_error("task_jsm_add_comment", str(req.id), logger)
 
     return {"id": str(req.id), "status": req.status.value}
 
@@ -616,7 +677,7 @@ async def update_request(
                 f"{settings.FRONTEND_URL}/requests/{req.id}",
             )
         except Exception:
-            logger.warning("task_send_status_update_email raised in eager mode — non-fatal", exc_info=True)
+            _log_task_error("task_send_status_update_email", str(req.id), logger)
 
     # Notify JSM so the requestor's service-desk ticket reflects the edit.
     if changed_summary:
