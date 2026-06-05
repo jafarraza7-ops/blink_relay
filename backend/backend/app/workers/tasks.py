@@ -179,32 +179,49 @@ def task_create_jira_ticket(
                 else:
                     logger.warning("Pod assignee %s has no Jira account — using default", assignee_email)
 
-            ticket = await jira.create_ticket(
-                project_key=project_key,
-                title=title,
-                description=req.business_problem,
-                request_type=str(req.request_type),
-                priority=str(req.priority),
-                submitter_name=req.submitter_name,
-                submitter_email=req.submitter_email,
-                reference_id=req.reference_id,
-                affected_area=req.affected_area,
-                region=", ".join(req.region) if isinstance(req.region, list) else str(req.region),
-                expected_outcome=req.expected_outcome,
-                steps_to_reproduce=req.steps_to_reproduce,
-                additional_context=req.additional_context,
-                component=str(req.pod) if req.pod else None,
-                assignee_account_id=assignee_account_id,
-                approver_name=approver_name,
-                approver_email=approver_email,
-            )
+            # IMPROVEMENT: Add timeout to Jira API calls with graceful degradation
+            # Reasoning: Jira API can be slow; timeout prevents approve from blocking
+            import asyncio
+            try:
+                ticket = await asyncio.wait_for(
+                    jira.create_ticket(
+                        project_key=project_key,
+                        title=title,
+                        description=req.business_problem,
+                        request_type=str(req.request_type),
+                        priority=str(req.priority),
+                        submitter_name=req.submitter_name,
+                        submitter_email=req.submitter_email,
+                        reference_id=req.reference_id,
+                        affected_area=req.affected_area,
+                        region=", ".join(req.region) if isinstance(req.region, list) else str(req.region),
+                        expected_outcome=req.expected_outcome,
+                        steps_to_reproduce=req.steps_to_reproduce,
+                        additional_context=req.additional_context,
+                        component=str(req.pod) if req.pod else None,
+                        assignee_account_id=assignee_account_id,
+                        approver_name=approver_name,
+                        approver_email=approver_email,
+                    ),
+                    timeout=20  # 20 second timeout for Jira ticket creation
+                )
 
-            req.jira_ticket_key = ticket["key"]
-            req.jira_ticket_url = ticket["url"]
-            # Commit now so subsequent tasks (jsm comment, attachment sync) can
-            # read jira_ticket_key from the DB in eager mode.
-            await db.commit()
-            logger.info("Jira ticket %s created for request %s", ticket["key"], request_id)
+                req.jira_ticket_key = ticket["key"]
+                req.jira_ticket_url = ticket["url"]
+                # Commit now so subsequent tasks (jsm comment, attachment sync) can
+                # read jira_ticket_key from the DB in eager mode.
+                await db.commit()
+                logger.info("Jira ticket %s created for request %s", ticket["key"], request_id)
+            except asyncio.TimeoutError:
+                # GRACEFUL DEGRADATION: Jira API timeout doesn't fail approval
+                # Requestor can still see the approved request; Jira ticket creation will retry
+                logger.warning(
+                    "Jira ticket creation timed out for request %s (>20s) — continuing without ticket",
+                    request_id, exc_info=True
+                )
+                # Don't set ticket key/url; leave for retry
+                await db.commit()
+                # Continue anyway so approval completes
 
             # Link Jira ↔ JSM tickets so both show each other in Issue Links.
             if req.jsm_ticket_key:
