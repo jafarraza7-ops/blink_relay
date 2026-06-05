@@ -8,6 +8,7 @@ import { PodBadge } from './PodBadge'
 import { PriorityBadge } from './PriorityBadge'
 import { TypeBadge } from './TypeBadge'
 import { formatDate, truncate } from '@/lib/utils'
+import { PAGE_SIZE } from '@/lib/constants'
 import type { BlinkRequest } from '@/lib/types'
 
 type SortCol = 'reference_id' | 'title' | 'request_type' | 'pod' | 'priority' | 'status' | 'created_at'
@@ -36,8 +37,6 @@ function sortRequests(requests: BlinkRequest[], col: SortCol, dir: SortDir): Bli
     return dir === 'asc' ? cmp : -cmp
   })
 }
-
-const PAGE_SIZE = 10
 
 interface RequestTableProps {
   requests: BlinkRequest[]

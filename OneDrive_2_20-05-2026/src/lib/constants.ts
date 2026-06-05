@@ -193,3 +193,10 @@ export const POD_DESCRIPTIONS: Record<Pod, string> = {
   Denali: 'Enterprise and fleet solutions',
   Unknown: 'Not yet classified',
 }
+
+// ── UI component refresh intervals ───────────────────────────────────────────
+// Used by data-fetching hooks to auto-refresh component state at regular intervals.
+
+export const PAGE_SIZE = 10
+export const DASHBOARD_REFRESH_INTERVAL_MS = 30_000
+export const MY_REQUESTS_REFRESH_INTERVAL_MS = 30_000

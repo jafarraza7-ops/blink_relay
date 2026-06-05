@@ -32,12 +32,11 @@ import {
   POD_COLORS, POD_ACTIVE_COLORS,
   PRIORITY_COLORS, PRIORITY_ACTIVE_COLORS,
   TYPE_COLORS, TYPE_ACTIVE_COLORS,
+  DASHBOARD_REFRESH_INTERVAL_MS as REFRESH_MS,
 } from '@/lib/constants'
 import type { Pod, RequestStatus, RequestType, Priority } from '@/lib/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const REFRESH_MS = 30_000
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

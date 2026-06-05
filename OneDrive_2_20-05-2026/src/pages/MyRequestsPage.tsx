@@ -40,12 +40,11 @@ import {
   STATUS_COLORS, STATUS_ACTIVE_COLORS,
   PRIORITY_COLORS, PRIORITY_ACTIVE_COLORS,
   TYPE_COLORS, TYPE_ACTIVE_COLORS,
+  MY_REQUESTS_REFRESH_INTERVAL_MS as REFRESH_MS,
 } from '@/lib/constants'
 import type { BlinkRequest, Priority, RequestStatus, RequestType } from '@/lib/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const REFRESH_MS = 30_000
 
 // "Closed" is omitted — it's a terminal archive state the requestor doesn't need to filter on
 const STATUS_OPTIONS: RequestStatus[] = [
