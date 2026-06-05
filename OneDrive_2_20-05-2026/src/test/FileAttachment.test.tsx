@@ -34,7 +34,7 @@ const mockFiles: Attachment[] = [
     filename: 'document.pdf',
     content_type: 'application/pdf',
     size_bytes: 1024,
-    created_at: new Date('2026-06-01'),
+    created_at: '2026-06-01T12:00:00Z',
     download_url: 'https://blob/document.pdf?sas',
   },
   {
@@ -43,7 +43,7 @@ const mockFiles: Attachment[] = [
     filename: 'spreadsheet.xlsx',
     content_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     size_bytes: 2048,
-    created_at: new Date('2026-06-01'),
+    created_at: '2026-06-01T12:00:00Z',
     download_url: 'https://blob/spreadsheet.xlsx?sas',
   },
 ]
@@ -214,7 +214,7 @@ describe('FileAttachment - Delete Feature', () => {
 
     vi.mocked(filesApi.filesApi.delete).mockResolvedValueOnce(undefined)
 
-    const { rerender } = renderWithQueryClient(<FileAttachment requestId="req-1" canUpload={true} />)
+    renderWithQueryClient(<FileAttachment requestId="req-1" canUpload={true} />)
 
     await waitFor(() => {
       expect(screen.getByText('document.pdf')).toBeInTheDocument()

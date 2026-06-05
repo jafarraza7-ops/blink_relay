@@ -194,7 +194,7 @@ async def delete_file(
     attachment_id: uuid.UUID,
     user: Annotated[UserClaims, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> None:
+):
     """Delete an attachment from a request.
 
     FEATURE: Allow requestors to remove incorrectly uploaded attachments
