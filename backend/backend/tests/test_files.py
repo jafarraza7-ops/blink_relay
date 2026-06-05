@@ -128,3 +128,163 @@ async def test_upload_file_request_not_found(authed_client: AsyncClient):
             files=[("files", ("test.png", io.BytesIO(b"PNG"), "image/png"))],
         )
     assert resp.status_code == 404
+
+
+# FEATURE: Delete attachment tests (allow requestors to remove wrong attachments)
+
+@pytest.mark.asyncio
+async def test_delete_file_as_uploader(authed_client: AsyncClient, db_session: AsyncSession):
+    """Uploader can delete their own attachment"""
+    req = await _make_request(db_session)
+    attachment = Attachment(
+        id=uuid.uuid4(),
+        request_id=req.id,
+        filename="test.pdf",
+        content_type="application/pdf",
+        blob_name=f"{req.id}/test.pdf",
+        size_bytes=1024,
+        uploaded_by_oid="files-oid",  # Same as submitter (authed_client)
+    )
+    db_session.add(attachment)
+    await db_session.commit()
+
+    with patch("app.api.files.StorageService") as mock_cls:
+        storage = MagicMock()
+        storage.delete_file = AsyncMock()
+        mock_cls.return_value = storage
+
+        resp = await authed_client.delete(f"/api/requests/{req.id}/files/{attachment.id}")
+
+    assert resp.status_code == 204
+    storage.delete_file.assert_called_once_with(f"{req.id}/test.pdf")
+
+
+@pytest.mark.asyncio
+async def test_delete_file_nonexistent(authed_client: AsyncClient, db_session: AsyncSession):
+    """Deleting nonexistent attachment returns 404"""
+    req = await _make_request(db_session)
+
+    with patch("app.api.files.StorageService"):
+        resp = await authed_client.delete(
+            f"/api/requests/{req.id}/files/00000000-0000-0000-0000-000000000000"
+        )
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_file_wrong_request(authed_client: AsyncClient, db_session: AsyncSession):
+    """Deleting attachment from wrong request returns 404 (not leaked)"""
+    req1 = await _make_request(db_session)
+    req2 = await _make_request(db_session)
+
+    attachment = Attachment(
+        id=uuid.uuid4(),
+        request_id=req1.id,
+        filename="test.pdf",
+        content_type="application/pdf",
+        blob_name=f"{req1.id}/test.pdf",
+        size_bytes=1024,
+        uploaded_by_oid="files-oid",
+    )
+    db_session.add(attachment)
+    await db_session.commit()
+
+    with patch("app.api.files.StorageService"):
+        resp = await authed_client.delete(f"/api/requests/{req2.id}/files/{attachment.id}")
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_file_permission_denied(authed_client: AsyncClient, db_session: AsyncSession):
+    """Cannot delete attachment uploaded by someone else (if not PM/reviewer)"""
+    req = await _make_request(db_session)
+    attachment = Attachment(
+        id=uuid.uuid4(),
+        request_id=req.id,
+        filename="test.pdf",
+        content_type="application/pdf",
+        blob_name=f"{req.id}/test.pdf",
+        size_bytes=1024,
+        uploaded_by_oid="other-user-oid",  # Different from authed_client
+    )
+    db_session.add(attachment)
+    await db_session.commit()
+
+    with patch("app.api.files.StorageService"):
+        resp = await authed_client.delete(f"/api/requests/{req.id}/files/{attachment.id}")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_delete_file_storage_error_graceful(authed_client: AsyncClient, db_session: AsyncSession):
+    """Delete succeeds even if blob deletion fails (graceful degradation)"""
+    req = await _make_request(db_session)
+    attachment = Attachment(
+        id=uuid.uuid4(),
+        request_id=req.id,
+        filename="test.pdf",
+        content_type="application/pdf",
+        blob_name=f"{req.id}/test.pdf",
+        size_bytes=1024,
+        uploaded_by_oid="files-oid",
+    )
+    db_session.add(attachment)
+    await db_session.commit()
+
+    with patch("app.api.files.StorageService") as mock_cls:
+        from app.services.storage_service import StorageError
+        storage = MagicMock()
+        storage.delete_file = AsyncMock(side_effect=StorageError("Blob not found"))
+        mock_cls.return_value = storage
+
+        resp = await authed_client.delete(f"/api/requests/{req.id}/files/{attachment.id}")
+
+    # Should succeed even if blob deletion fails
+    assert resp.status_code == 204
+
+    # Verify attachment was deleted from DB
+    deleted = await db_session.get(Attachment, attachment.id)
+    assert deleted is None
+
+
+@pytest.mark.asyncio
+async def test_delete_file_creates_audit_log(authed_client: AsyncClient, db_session: AsyncSession):
+    """Deletion is recorded in audit trail"""
+    from app.models.request import AuditLog
+
+    req = await _make_request(db_session)
+    attachment = Attachment(
+        id=uuid.uuid4(),
+        request_id=req.id,
+        filename="test.pdf",
+        content_type="application/pdf",
+        blob_name=f"{req.id}/test.pdf",
+        size_bytes=1024,
+        uploaded_by_oid="files-oid",
+    )
+    db_session.add(attachment)
+    await db_session.commit()
+
+    with patch("app.api.files.StorageService") as mock_cls:
+        storage = MagicMock()
+        storage.delete_file = AsyncMock()
+        mock_cls.return_value = storage
+
+        resp = await authed_client.delete(f"/api/requests/{req.id}/files/{attachment.id}")
+
+    assert resp.status_code == 204
+
+    # Verify audit log was created
+    from sqlalchemy import select
+    result = await db_session.execute(
+        select(AuditLog).where(
+            (AuditLog.request_id == req.id) & (AuditLog.action == "attachment_deleted")
+        )
+    )
+    audit = result.scalars().first()
+    assert audit is not None
+    assert audit.event_data["filename"] == "test.pdf"
+    assert audit.event_data["size_bytes"] == 1024

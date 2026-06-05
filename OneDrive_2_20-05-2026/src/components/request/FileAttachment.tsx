@@ -1,7 +1,7 @@
 import { useRef } from 'react'
-import { Download, File, Paperclip, Upload } from 'lucide-react'
+import { Download, File, Paperclip, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useFiles, useUploadFile } from '@/hooks/useFiles'
+import { useFiles, useUploadFile, useDeleteFile } from '@/hooks/useFiles'
 import { useToast } from '@/components/ui/use-toast'
 import { formatBytes, formatDate } from '@/lib/utils'
 import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from '@/lib/constants'
@@ -14,8 +14,27 @@ interface FileAttachmentProps {
 export function FileAttachment({ requestId, canUpload = true }: FileAttachmentProps) {
   const { data: files = [], isLoading } = useFiles(requestId)
   const { mutate: uploadFile, isPending } = useUploadFile(requestId)
+  const { mutate: deleteFile, isPending: isDeleting } = useDeleteFile(requestId)
   const { toast } = useToast()
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleDelete = (attachmentId: string, filename: string) => {
+    deleteFile(attachmentId, {
+      onSuccess: () => {
+        toast({
+          title: 'Attachment deleted',
+          description: `${filename} has been removed`,
+        })
+      },
+      onError: (err) => {
+        toast({
+          title: 'Delete failed',
+          description: err.message,
+          variant: 'destructive',
+        })
+      },
+    })
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
@@ -84,14 +103,29 @@ export function FileAttachment({ requestId, canUpload = true }: FileAttachmentPr
                   {formatBytes(file.size_bytes)} · {formatDate(file.created_at)}
                 </p>
               </div>
-              {file.download_url && (
-                <Button asChild variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                  <a href={file.download_url} target="_blank" rel="noopener noreferrer" download={file.filename}>
-                    <Download className="h-4 w-4" />
-                    <span className="sr-only">Download {file.filename}</span>
-                  </a>
-                </Button>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                {file.download_url && (
+                  <Button asChild variant="ghost" size="icon" className="h-7 w-7">
+                    <a href={file.download_url} target="_blank" rel="noopener noreferrer" download={file.filename}>
+                      <Download className="h-4 w-4" />
+                      <span className="sr-only">Download {file.filename}</span>
+                    </a>
+                  </Button>
+                )}
+                {/* FEATURE: Delete button for requestors to remove wrong attachments */}
+                {canUpload && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    disabled={isDeleting}
+                    onClick={() => handleDelete(file.id, file.filename)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Delete {file.filename}</span>
+                  </Button>
+                )}
+              </div>
             </li>
           ))}
         </ul>

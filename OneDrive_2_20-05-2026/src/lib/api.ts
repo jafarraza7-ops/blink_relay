@@ -208,6 +208,10 @@ export const filesApi = {
       } as AxiosRequestConfig)
       .then((r) => r.data)
   },
+
+  // FEATURE: Allow requestors to delete incorrectly uploaded attachments
+  delete: (requestId: string, attachmentId: string): Promise<void> =>
+    apiClient.delete(`/requests/${requestId}/files/${attachmentId}`).then(() => undefined),
 }
 
 

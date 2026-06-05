@@ -186,3 +186,62 @@ async def download_local_blob(blob_path: str):
         raise HTTPException(status_code=404, detail="File not found")
 
     return FileResponse(target)
+
+
+@router.delete("/requests/{request_id}/files/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_file(
+    request_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    user: Annotated[UserClaims, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """Delete an attachment from a request.
+
+    FEATURE: Allow requestors to remove incorrectly uploaded attachments
+    Reasoning: Users should be able to fix mistakes before finalizing submission.
+    Permission: Only the uploader or a PM/reviewer can delete attachments.
+    """
+    req = await db.get(Request, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    attachment = await db.get(Attachment, attachment_id)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    if attachment.request_id != request_id:
+        raise HTTPException(status_code=404, detail="Attachment not found in this request")
+
+    # PERMISSION: Only uploader or PM/reviewer can delete
+    is_uploader = user.oid == attachment.uploaded_by_oid or (user.email and user.email.split('@')[0] in attachment.uploaded_by_oid.lower())
+    is_pm_or_reviewer = "ProductManager" in user.roles or "Reviewer" in user.roles
+
+    if not (is_uploader or is_pm_or_reviewer):
+        raise HTTPException(status_code=403, detail="Cannot delete attachments uploaded by others")
+
+    # Delete from storage
+    storage = StorageService()
+    try:
+        await storage.delete_file(attachment.blob_name)
+    except StorageError as exc:
+        logger.warning(f"Failed to delete blob {attachment.blob_name}: {exc}", exc_info=True)
+        # Continue even if blob deletion fails — delete the record anyway
+
+    # Delete from database
+    await db.delete(attachment)
+    await db.commit()
+
+    # Log audit trail
+    try:
+        from app.models.request import AuditLog
+        audit = AuditLog(
+            request_id=request_id,
+            actor_oid=user.oid or user.email,
+            actor_email=user.email,
+            action="attachment_deleted",
+            event_data={"filename": attachment.filename, "size_bytes": attachment.size_bytes},
+        )
+        db.add(audit)
+        await db.commit()
+    except Exception:
+        logger.warning("Failed to log attachment deletion to audit trail", exc_info=True)

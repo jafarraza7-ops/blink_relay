@@ -27,3 +27,16 @@ export function useUploadFile(requestId: string) {
     },
   })
 }
+
+// FEATURE: Allow requestors to delete incorrectly uploaded attachments
+export function useDeleteFile(requestId: string) {
+  const queryClient = useQueryClient()
+  return useMutation<void, Error, string>({
+    mutationFn: async (attachmentId) => {
+      await filesApi.delete(requestId, attachmentId)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: fileKeys.all(requestId) })
+    },
+  })
+}
