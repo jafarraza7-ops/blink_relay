@@ -256,7 +256,12 @@ async def list_requests(
     page_size: int = Query(25, ge=1, le=1000),
 ) -> RequestListResponse:
     """Paginated list of all requests for the reviewer dashboard.
-    Supports filtering by pod, status, type, priority, and title keyword search."""
+    Supports filtering by pod, status, type, priority, and title keyword search.
+
+    IMPROVEMENT: PMs don't see their own requests on dashboard
+    Reasoning: PMs should use 'My Requests' tab to see requests they created.
+    Dashboard is for reviewing OTHER requests. PodReviewers see all requests.
+    """
     filters = []
     if pod:
         filters.append(Request.pod == pod)
@@ -268,6 +273,15 @@ async def list_requests(
         filters.append(Request.priority == priority)
     if search:
         filters.append(Request.title.ilike(f"%{search}%"))
+
+    # FILTER: If user is ProductManager, exclude their own requests
+    # PodReviewers see all requests for their area
+    if "ProductManager" in user.roles:
+        # Exclude requests created by this PM (match by OID or email)
+        if user.oid:
+            filters.append(Request.submitter_oid != user.oid)
+        if user.email:
+            filters.append(Request.submitter_email != user.email)
 
     count_result = await db.execute(select(func.count()).select_from(Request).where(*filters))
     total = count_result.scalar_one()
@@ -296,7 +310,11 @@ async def export_requests_csv(
     priority: Optional[Priority] = Query(None),
     search: Optional[str] = Query(None, max_length=200),
 ) -> StreamingResponse:
-    """Export all matching requests as a CSV file (no pagination limit)."""
+    """Export all matching requests as a CSV file (no pagination limit).
+
+    IMPROVEMENT: PMs don't export their own requests
+    Reasoning: Consistent with dashboard filtering - export matches what they see.
+    """
     filters = []
     if pod:
         filters.append(Request.pod == pod)
@@ -308,6 +326,13 @@ async def export_requests_csv(
         filters.append(Request.priority == priority)
     if search:
         filters.append(Request.title.ilike(f"%{search}%"))
+
+    # FILTER: If user is ProductManager, exclude their own requests (same as list_requests)
+    if "ProductManager" in user.roles:
+        if user.oid:
+            filters.append(Request.submitter_oid != user.oid)
+        if user.email:
+            filters.append(Request.submitter_email != user.email)
 
     result = await db.execute(
         select(Request).where(*filters).order_by(Request.created_at.desc())

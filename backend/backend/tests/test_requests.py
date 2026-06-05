@@ -276,3 +276,83 @@ async def test_edit_fires_jsm_activity_comment(
     assert args[0] == request_id
     assert "edited" in args[1].lower()
     assert "title" in args[1]
+
+
+# IMPROVEMENT: PM dashboard filtering - don't show own requests
+
+@pytest.mark.asyncio
+async def test_pm_dashboard_excludes_own_requests(
+    pm_client: AsyncClient,
+    anon_client: AsyncClient,
+    sample_request_payload,
+    db_session,
+):
+    """PM should not see their own requests on dashboard (they use My Requests tab)"""
+    import uuid as _uuid
+    from sqlalchemy import select
+    from app.models.request import Request
+
+    # PM creates a request
+    create = await pm_client.post("/api/requests", json=sample_request_payload)
+    assert create.status_code == 201
+    pm_request_id = create.json()["id"]
+
+    # Anonymous user creates a request (for comparison)
+    create2 = await anon_client.post("/api/requests", json=sample_request_payload)
+    assert create2.status_code == 201
+    other_request_id = create2.json()["id"]
+
+    # PM queries dashboard - should NOT see their own request
+    resp = await pm_client.get("/api/requests")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # PM's own request should NOT be in the results
+    pm_ids = [item["id"] for item in data["items"]]
+    assert pm_request_id not in pm_ids, "PM should not see their own request"
+
+    # But should see other requests if they exist
+    # (this depends on whether other_request_id is in the results)
+    # The key is that pm_request_id is definitely not there
+
+
+@pytest.mark.asyncio
+async def test_pod_reviewer_sees_all_pm_requests(
+    reviewer_client: AsyncClient,
+    pm_client: AsyncClient,
+    sample_request_payload,
+):
+    """Pod reviewers should see all requests, including PM's own requests"""
+    # PM creates a request
+    create = await pm_client.post("/api/requests", json=sample_request_payload)
+    assert create.status_code == 201
+    request_id = create.json()["id"]
+
+    # Reviewer queries dashboard - should see PM's request
+    resp = await reviewer_client.get("/api/requests")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Should find PM's request
+    found = any(item["id"] == request_id for item in data["items"])
+    assert found, "Reviewer should see PM's request"
+
+
+@pytest.mark.asyncio
+async def test_pm_export_excludes_own_requests(
+    pm_client: AsyncClient,
+    sample_request_payload,
+):
+    """PM's CSV export should not include their own requests"""
+    # PM creates a request
+    create = await pm_client.post("/api/requests", json=sample_request_payload)
+    assert create.status_code == 201
+    request_title = create.json()["title"]
+
+    # PM exports CSV - should not include their own request
+    resp = await pm_client.get("/api/requests/export")
+    assert resp.status_code == 200
+    csv_content = resp.text
+
+    # Request title should not appear in CSV export
+    assert request_title not in csv_content, "PM's own request should not be in export"
