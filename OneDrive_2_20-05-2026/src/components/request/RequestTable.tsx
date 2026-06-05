@@ -11,8 +11,8 @@ import { formatDate, truncate } from '@/lib/utils'
 import { PAGE_SIZE } from '@/lib/constants'
 import type { BlinkRequest } from '@/lib/types'
 
-type SortCol = 'reference_id' | 'title' | 'request_type' | 'pod' | 'priority' | 'status' | 'created_at'
-type SortDir = 'asc' | 'desc'
+export type SortCol = 'reference_id' | 'title' | 'request_type' | 'pod' | 'priority' | 'status' | 'created_at'
+export type SortDir = 'asc' | 'desc'
 
 const PRIORITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
 const STATUS_ORDER: Record<string, number> = {
