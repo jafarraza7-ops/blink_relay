@@ -203,16 +203,24 @@ export function ReviewPage() {
             <Card>
               <CardHeader><CardTitle className="text-base">Update Status</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <Select value={newStatus} onValueChange={(v) => { setNewStatus(v as RequestStatus); setRejectReason(''); setRejectComment('') }}>
-                  <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                  <SelectContent>
-                    {ALLOWED_TRANSITIONS[req.status].map((s) => (
-                      <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* IMPROVEMENT: Show current status and available transitions */}
+                <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+                  <span className="text-sm text-muted-foreground">Current Status</span>
+                  <StatusBadge status={req.status} />
+                </div>
 
-                {isRejecting && (
+                {ALLOWED_TRANSITIONS[req.status].length > 0 ? (
+                  <>
+                    <Select value={newStatus} onValueChange={(v) => { setNewStatus(v as RequestStatus); setRejectReason(''); setRejectComment('') }}>
+                      <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
+                      <SelectContent>
+                        {ALLOWED_TRANSITIONS[req.status].map((s) => (
+                          <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {isRejecting && (
                   <>
                     <Select value={rejectReason} onValueChange={setRejectReason}>
                       <SelectTrigger><SelectValue placeholder="Select rejection reason" /></SelectTrigger>
@@ -228,6 +236,10 @@ export function ReviewPage() {
                       className="resize-none"
                     />
                   </>
+                ) : (
+                  <p className="text-sm text-muted-foreground p-3 bg-muted rounded-md">
+                    This request cannot be transitioned to a new status. It is in a terminal state.
+                  </p>
                 )}
 
                 {isRejecting ? (
