@@ -115,7 +115,12 @@ async def update_status(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict:
     """Move a request to any valid next status. Used for non-approve/reject transitions
-    (e.g. InReview → AwaitingInfo, or InProgress → Completed)."""
+    (e.g. InReview → AwaitingInfo, or InProgress → Completed).
+
+    IMPROVEMENT: Create Jira ticket when transitioning to APPROVED
+    Reasoning: Ensures Jira ticket is created regardless of approval method (approve vs status_change).
+    Requestors should see the Jira ticket after approval.
+    """
     req = await _get_request_or_404(request_id, db)
     _validate_transition(req.status, payload.status)
     prev = req.status
@@ -144,6 +149,14 @@ async def update_status(
     if payload.comment:
         jsm_msg += f"\n\nComment: {payload.comment}"
     task_jsm_add_comment.delay(str(req.id), jsm_msg, True)
+
+    # IMPROVEMENT: Create Jira ticket if transitioning to APPROVED
+    # This ensures Jira ticket is created regardless of which endpoint approved the request
+    if payload.status == RequestStatus.APPROVED and not req.jira_ticket_key:
+        try:
+            task_create_jira_ticket.delay(str(req.id), None, None, user.name, user.email)
+        except Exception:
+            logger.warning("task_create_jira_ticket raised in eager mode — non-fatal", exc_info=True)
 
     return {"id": str(req.id), "status": str(req.status)}
 
