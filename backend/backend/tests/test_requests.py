@@ -278,16 +278,16 @@ async def test_edit_fires_jsm_activity_comment(
     assert "title" in args[1]
 
 
-# IMPROVEMENT: PM dashboard filtering - don't show own requests
+# IMPROVEMENT: PM dashboard includes own requests
 
 @pytest.mark.asyncio
-async def test_pm_dashboard_excludes_own_requests(
+async def test_pm_dashboard_includes_own_requests(
     pm_client: AsyncClient,
     anon_client: AsyncClient,
     sample_request_payload,
     db_session,
 ):
-    """PM should not see their own requests on dashboard (they use My Requests tab)"""
+    """PM should see their own requests on dashboard (in addition to My Requests tab)"""
     import uuid as _uuid
     from sqlalchemy import select
     from app.models.request import Request
@@ -302,18 +302,14 @@ async def test_pm_dashboard_excludes_own_requests(
     assert create2.status_code == 201
     other_request_id = create2.json()["id"]
 
-    # PM queries dashboard - should NOT see their own request
+    # PM queries dashboard - should see their own request
     resp = await pm_client.get("/api/requests")
     assert resp.status_code == 200
     data = resp.json()
 
-    # PM's own request should NOT be in the results
+    # PM's own request should be in the results
     pm_ids = [item["id"] for item in data["items"]]
-    assert pm_request_id not in pm_ids, "PM should not see their own request"
-
-    # But should see other requests if they exist
-    # (this depends on whether other_request_id is in the results)
-    # The key is that pm_request_id is definitely not there
+    assert pm_request_id in pm_ids, "PM should see their own request in dashboard"
 
 
 @pytest.mark.asyncio
@@ -339,20 +335,20 @@ async def test_pod_reviewer_sees_all_pm_requests(
 
 
 @pytest.mark.asyncio
-async def test_pm_export_excludes_own_requests(
+async def test_pm_export_includes_own_requests(
     pm_client: AsyncClient,
     sample_request_payload,
 ):
-    """PM's CSV export should not include their own requests"""
+    """PM's CSV export should include their own requests"""
     # PM creates a request
     create = await pm_client.post("/api/requests", json=sample_request_payload)
     assert create.status_code == 201
     request_title = create.json()["title"]
 
-    # PM exports CSV - should not include their own request
+    # PM exports CSV - should include their own request
     resp = await pm_client.get("/api/requests/export")
     assert resp.status_code == 200
     csv_content = resp.text
 
-    # Request title should not appear in CSV export
-    assert request_title not in csv_content, "PM's own request should not be in export"
+    # Request title should appear in CSV export
+    assert request_title in csv_content, "PM's own request should be in export"

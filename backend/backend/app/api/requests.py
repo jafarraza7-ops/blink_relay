@@ -343,9 +343,8 @@ async def list_requests(
     """Paginated list of all requests for the reviewer dashboard.
     Supports filtering by pod, status, type, priority, and title keyword search.
 
-    IMPROVEMENT: PMs don't see their own requests on dashboard
-    Reasoning: PMs should use 'My Requests' tab to see requests they created.
-    Dashboard is for reviewing OTHER requests. PodReviewers see all requests.
+    Both PMs and PodReviewers see all requests in the dashboard.
+    PMs can also access their own submitted requests here, in addition to 'My Requests' tab.
     """
     filter_params = {
         "pod": pod,
@@ -354,7 +353,7 @@ async def list_requests(
         "priority": priority,
         "search": search,
     }
-    filters = _build_request_filters(filter_params, user, exclude_pm_requests=True)
+    filters = _build_request_filters(filter_params, user, exclude_pm_requests=False)
 
     count_result = await db.execute(select(func.count()).select_from(Request).where(*filters))
     total = count_result.scalar_one()
@@ -385,8 +384,8 @@ async def export_requests_csv(
 ) -> StreamingResponse:
     """Export all matching requests as a CSV file (no pagination limit).
 
-    IMPROVEMENT: PMs don't export their own requests
-    Reasoning: Consistent with dashboard filtering - export matches what they see.
+    Includes all requests visible to the user in the dashboard — both PMs and PodReviewers
+    see the complete dataset they have access to, including their own submitted requests.
     """
     filter_params = {
         "pod": pod,
@@ -395,7 +394,7 @@ async def export_requests_csv(
         "priority": priority,
         "search": search,
     }
-    filters = _build_request_filters(filter_params, user, exclude_pm_requests=True)
+    filters = _build_request_filters(filter_params, user, exclude_pm_requests=False)
 
     result = await db.execute(
         select(Request).where(*filters).order_by(Request.created_at.desc())
