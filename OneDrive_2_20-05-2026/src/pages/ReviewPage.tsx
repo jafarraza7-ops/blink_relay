@@ -203,12 +203,6 @@ export function ReviewPage() {
             <Card>
               <CardHeader><CardTitle className="text-base">Update Status</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                {/* IMPROVEMENT: Show current status and available transitions */}
-                <div className="flex items-center justify-between p-3 bg-muted rounded-md">
-                  <span className="text-sm text-muted-foreground">Current Status</span>
-                  <StatusBadge status={req.status} />
-                </div>
-
                 {ALLOWED_TRANSITIONS[req.status].length > 0 ? (
                   <>
                     <Select value={newStatus} onValueChange={(v) => { setNewStatus(v as RequestStatus); setRejectReason(""); setRejectComment("") }}>
