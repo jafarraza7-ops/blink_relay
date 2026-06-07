@@ -368,3 +368,48 @@ def validate_user_roles(roles: list[str]) -> list[str]:
 - **Fast to develop** (reusable components, clear patterns, good tooling)
 
 Every line you write today affects code written six months from now. Code quality is not a feature — it's a foundation.
+
+
+## 9. Input Validation & Sanitization (NEWLY ADDED)
+
+**Principle:** All user input must be validated and sanitized at both frontend and backend layers. Reject invalid input early with clear error messages.
+
+### Required Field Validation:
+- Required text fields must not be empty or contain only whitespace
+- Validate at form submission (frontend) before API calls
+- Validate again at endpoint (backend) before database storage
+- Use `.trim()` to strip whitespace during validation
+
+### Error Handling:
+- Show user-friendly error messages: "Field cannot be empty or contain only spaces"
+- Return 422 (Unprocessable Entity) for validation failures
+- Toast notifications on frontend with clear guidance
+
+### Examples:
+**Backend (Pydantic):**
+```python
+@field_validator('title', 'business_problem', 'affected_area')
+@classmethod
+def validate_not_whitespace_only(cls, v):
+    if isinstance(v, str) and not v.strip():
+        raise ValueError('This field cannot be empty or contain only spaces')
+    return v.strip() if isinstance(v, str) else v
+```
+
+**Frontend (TypeScript):**
+```typescript
+if (!title.trim()) {
+  toast({ title: 'Validation Error', description: 'Title cannot be empty or contain only spaces' })
+  return
+}
+```
+
+### Applies To:
+- Request submission forms (title, business_problem, affected_area)
+- Conversation messages (cannot post message with only spaces)
+- Any required text input field
+
+### Success Metrics:
+- 0 whitespace-only submissions in database
+- 100% of required fields validated frontend + backend
+- Clear error messages for all validation failures
