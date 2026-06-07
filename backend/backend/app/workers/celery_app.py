@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import get_settings
 
@@ -10,7 +11,7 @@ celery_app = Celery(
     "blink_relay",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.workers.tasks"],
+    include=["app.workers.tasks", "app.workers.reminder_tasks"],
 )
 
 celery_app.conf.update(
@@ -26,8 +27,16 @@ celery_app.conf.update(
         "app.workers.tasks.task_create_jira_ticket": {"queue": "jira"},
         "app.workers.tasks.task_send_status_notification": {"queue": "notifications"},
         "app.workers.tasks.task_send_email": {"queue": "notifications"},
+        "app.workers.reminder_tasks.task_send_pending_request_reminder": {"queue": "reminders"},
     },
-    beat_schedule={},
+    beat_schedule={
+        # Send reminders to PMs about requests pending 72+ hours.
+        # Runs every day at 9:00 AM UTC. PMs receive at most one reminder per request per day.
+        "send-pending-request-reminder-daily": {
+            "task": "app.workers.reminder_tasks.task_send_pending_request_reminder",
+            "schedule": crontab(hour=9, minute=0),
+        },
+    },
     # Eager mode: tasks run inline (no broker needed). Used for local smoke testing.
     task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,
     task_eager_propagates=settings.CELERY_TASK_ALWAYS_EAGER,
