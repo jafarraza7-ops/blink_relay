@@ -23,6 +23,7 @@ except ImportError:  # Python < 3.11
         pass
 from typing import Any, Optional
 
+from pydantic import field_validator, BaseModel
 from sqlalchemy import (
     Boolean,
     DateTime,

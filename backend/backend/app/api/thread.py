@@ -5,8 +5,8 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,13 +32,48 @@ _REVIEWER_ROLES = {Role.POD_REVIEWER, Role.PRODUCT_MANAGER, Role.ADMIN}
 
 
 class MessageCreate(BaseModel):
+    """Request to post a message with validation.
+
+    Validates that message body is not empty or whitespace-only before processing.
+    Whitespace is automatically stripped during validation.
+    """
     body: str
     is_internal: bool = False
     mentions: list[str] = []  # List of mentioned user OIDs
 
+    @field_validator('body', mode='before')
+    @classmethod
+    def validate_body_not_empty(cls, v):
+        """Validate message body is not empty or whitespace-only.
+
+        Users cannot send messages that contain only spaces.
+        Whitespace-only messages are rejected before database storage.
+        """
+        if isinstance(v, str):
+            stripped = v.strip()
+            if not stripped:
+                raise ValueError('Message cannot be empty or contain only spaces')
+            return stripped
+        return v
+
 
 class ClarifyPayload(BaseModel):
+    """Request to send a clarification question with validation.
+
+    Validates that message body is not empty or whitespace-only before processing.
+    """
     body: str
+
+    @field_validator('body', mode='before')
+    @classmethod
+    def validate_body_not_empty(cls, v):
+        """Validate message body is not empty or whitespace-only."""
+        if isinstance(v, str):
+            stripped = v.strip()
+            if not stripped:
+                raise ValueError('Message cannot be empty or contain only spaces')
+            return stripped
+        return v
 
 
 class MessageResponse(BaseModel):
@@ -84,6 +119,11 @@ async def post_message(
     user: Annotated[UserClaims, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> MessageResponse:
+    """Post a message to a request thread.
+
+    Validates that message body is not empty or whitespace-only.
+    The body is automatically sanitized (whitespace stripped) before storage.
+    """
     req = await db.get(Request, request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
