@@ -150,3 +150,32 @@ def task_send_request_cancellation_email(self, email: str, reference_id: str, ti
         _run(_send())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task(bind=True, max_retries=3)
+def task_send_pending_reminder_email(self, email: str, reference_id: str, title: str, submitter_name: str, created_at: str):
+    """Send PM reminder email about request pending review for 72+ hours.
+
+    Reminder is sent once every 24 hours to all PMs if a request remains in
+    SUBMITTED or IN_REVIEW status without a status update for 72+ hours.
+
+    Args:
+        email: PM email address
+        reference_id: Request reference ID
+        title: Request title
+        submitter_name: Name of the requestor who submitted the request
+        created_at: ISO format timestamp when the request was created
+    """
+    async def _send():
+        from app.services.email_service import get_pending_reminder_template
+        html_content = get_pending_reminder_template(reference_id, title, submitter_name, created_at)
+        await NotificationService().send_email(
+            to=email,
+            subject=f"[Blink Relay] Action Required: Pending Request {reference_id}",
+            body_html=html_content,
+        )
+
+    try:
+        _run(_send())
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))

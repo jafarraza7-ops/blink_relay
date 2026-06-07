@@ -502,3 +502,82 @@ def get_request_cancellation_template(reference_id: str, title: str, submitted_b
     </div>
 </body>
 </html>"""
+
+
+def get_pending_reminder_template(reference_id: str, title: str, submitter_name: str, created_at: str) -> str:
+    """Email template for PM reminder about request pending review for 72+ hours.
+
+    Sent once every 24 hours to all PMs when a request remains in SUBMITTED or IN_REVIEW
+    status without status update for 72+ hours, encouraging them to review and update status.
+    """
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f9fafb; margin: 0; padding: 0; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .email-box {{ background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }}
+        .header {{ display: flex; align-items: center; margin-bottom: 30px; }}
+        .logo {{ width: 32px; height: 32px; background: linear-gradient(135deg, #0066cc 0%, #004499 100%); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 10px; }}
+        .brand {{ color: #0066cc; font-size: 16px; font-weight: 600; }}
+        h2 {{ color: #111827; margin: 0 0 10px 0; font-size: 24px; }}
+        p {{ color: #4b5563; font-size: 14px; line-height: 1.6; margin: 15px 0; }}
+        .cta-button {{ display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 20px 0; transition: opacity 0.2s; }}
+        .cta-button:hover {{ opacity: 0.9; }}
+        .alert-box {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 4px; margin: 20px 0; }}
+        .alert-box .alert-title {{ font-weight: 700; color: #d97706; margin-bottom: 8px; }}
+        .alert-box p {{ margin: 4px 0; color: #78350f; }}
+        .request-details {{ background: #f3f4f6; padding: 16px; border-radius: 4px; margin: 20px 0; }}
+        .detail-row {{ display: flex; justify-content: space-between; margin: 8px 0; font-size: 13px; }}
+        .detail-label {{ font-weight: 600; color: #374151; min-width: 100px; }}
+        .detail-value {{ color: #4b5563; flex: 1; }}
+        .footer {{ color: #9ca3af; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="email-box">
+            <div class="header">
+                <div class="logo">⚡</div>
+                <div class="brand">Blink Relay</div>
+            </div>
+            <h2>Action Required: Pending Request Review</h2>
+            <p>Hi Product Manager,</p>
+            <div class="alert-box">
+                <div class="alert-title">Request pending for 72+ hours</div>
+                <p>Request <strong>{reference_id}</strong> from {submitter_name} has been waiting for review or status update.</p>
+                <p>Please review and update the status to keep stakeholders informed.</p>
+            </div>
+            <div class="request-details">
+                <div class="detail-row">
+                    <span class="detail-label">Reference ID:</span>
+                    <span class="detail-value"><strong>{reference_id}</strong></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Title:</span>
+                    <span class="detail-value">{title}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Submitted:</span>
+                    <span class="detail-value">{created_at}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Submitted by:</span>
+                    <span class="detail-value">{submitter_name}</span>
+                </div>
+            </div>
+            <p>Timely feedback helps maintain stakeholder confidence and ensures requests are prioritized appropriately.</p>
+            <center>
+                <a href="https://blink-relay.example.com/requests/{reference_id}" class="cta-button">Review Request</a>
+            </center>
+            <div class="footer">
+                <p>Blink Relay • Product Intake System</p>
+                <p>This is an automated reminder. Requests are auto-reminding PMs when pending for 72+ hours.</p>
+                <p>© 2026 Blink Charging. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>"""
