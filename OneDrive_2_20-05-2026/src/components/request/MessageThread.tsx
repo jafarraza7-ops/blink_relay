@@ -118,13 +118,25 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!body.trim()) return
+
+    // Validate message is not empty or whitespace-only
+    if (!body || !body.trim()) {
+      toast({
+        title: 'Invalid Message',
+        description: 'Message cannot be empty or contain only spaces',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Sanitize and send
     postMessage(
       { body: body.trim(), is_internal: isInternal, mentions },
       {
         onSuccess: () => {
           setBody('')
           setMentions([])
+          toast({ title: 'Message sent' })
         },
         onError: (err) => toast({ title: 'Failed to send message', description: err.message, variant: 'destructive' }),
       }
