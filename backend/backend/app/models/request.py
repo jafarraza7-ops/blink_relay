@@ -249,6 +249,13 @@ class Request(Base):
     jsm_ticket_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     jsm_resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Tracks when the last 72-hour pending reminder was sent to PMs.
+    # Used to prevent duplicate reminders within a 24-hour window for the same request.
+    # If a request remains in SUBMITTED or IN_REVIEW for 72+ hours without status update,
+    # a reminder is sent to all PMs. This field is updated to the current timestamp
+    # after the reminder is sent, allowing another reminder after 24+ hours have passed.
+    reminder_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
