@@ -60,7 +60,7 @@ def task_send_status_update_email(self, email: str, reference_id: str, title: st
         html_content = get_status_update_template(reference_id, title, old_status, new_status, user_name, request_url)
         await NotificationService().send_email(
             to=email,
-            subject=f"Status Update: {reference_id}",
+            subject=f"[Blink Relay] Status Update: {reference_id}",
             body_html=html_content,
         )
 
@@ -88,7 +88,7 @@ def task_send_new_message_email(self, email: str, reference_id: str, title: str,
         html_content = get_new_message_template(reference_id, title, author_name, message_preview, user_name, request_url)
         await NotificationService().send_email(
             to=email,
-            subject=f"New Message: {reference_id}",
+            subject=f"[Blink Relay] New Message: {reference_id}",
             body_html=html_content,
         )
 
@@ -116,7 +116,7 @@ def task_send_request_creation_email(self, email: str, reference_id: str, title:
         html_content = get_request_creation_template(reference_id, title, request_type, priority, user_name, request_url)
         await NotificationService().send_email(
             to=email,
-            subject=f"Request Submitted: {reference_id}",
+            subject=f"[Blink Relay] Request Submitted: {reference_id}",
             body_html=html_content,
         )
 
@@ -142,7 +142,7 @@ def task_send_request_cancellation_email(self, email: str, reference_id: str, ti
         html_content = get_request_cancellation_template(reference_id, title, user_name, cancellation_date)
         await NotificationService().send_email(
             to=email,
-            subject=f"Request Cancelled: {reference_id}",
+            subject=f"[Blink Relay] Request Cancelled: {reference_id}",
             body_html=html_content,
         )
 
