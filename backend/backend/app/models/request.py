@@ -51,6 +51,21 @@ class MessageType(StrEnum):
 
 
 class Pod(StrEnum):
+    """Engineering product areas. Each pod owns specific Blink products/services.
+
+    Pod represents the team or product area responsible for handling a request.
+    Database values remain unchanged for compatibility, but users see business-friendly
+    labels in the UI that focus on product impact rather than technical team names.
+
+    Mapping (enum value → user-friendly display label):
+      - Charger → "Charging Stations"
+      - Driver → "Driver Mobile App"
+      - Revenue → "Payments & Billing"
+      - Data → "Data & Analytics"
+      - DevOps → "System & Infrastructure"
+      - Denali → "Enterprise Fleet"
+      - Unknown → "Not yet classified"
+    """
     CHARGER = "Charger"
     DRIVER = "Driver"
     REVENUE = "Revenue"
