@@ -17,6 +17,24 @@ import { formatBytes } from '@/lib/utils'
 import { PODS, POD_LABELS, POD_DESCRIPTIONS, REGIONS, REGION_LABELS, ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from '@/lib/constants'
 import type { RequestType, Priority, Region } from '@/lib/types'
 
+// ── Validation Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Validates that a string field is not empty or whitespace-only.
+ * Used for required fields to prevent "only spaces" submissions.
+ */
+function isValidRequiredField(value: string): boolean {
+  return value.trim().length > 0
+}
+
+/**
+ * Sanitizes input by removing leading/trailing whitespace.
+ * Applied to all text inputs to normalize user input.
+ */
+function sanitizeInput(value: string): string {
+  return value.trim()
+}
+
 // ── Schema ────────────────────────────────────────────────────────────────────
 
 const submitSchema = z.object({
@@ -24,12 +42,43 @@ const submitSchema = z.object({
   priority: z.enum(['Critical', 'High', 'Medium', 'Low'] as const),
   pod: z.enum(['Charger', 'Driver', 'Revenue', 'Data', 'DevOps', 'Denali'] as const),
   region: z.array(z.enum(['NA', 'UK', 'EU'] as const)).min(1, 'Select at least one region'),
-  title: z.string().min(5, 'Title must be at least 5 characters').max(200),
-  business_problem: z.string().min(20, 'Please provide at least 20 characters'),
-  expected_outcome: z.string().optional(),
-  steps_to_reproduce: z.string().optional(),
-  affected_area: z.string().min(3, 'Please describe the affected area'),
-  additional_context: z.string().optional(),
+  title: z.string()
+    .min(5, 'Title must be at least 5 characters')
+    .max(200)
+    .refine(
+      (v) => isValidRequiredField(v),
+      { message: 'Title cannot contain only spaces' }
+    ),
+  business_problem: z.string()
+    .min(20, 'Please provide at least 20 characters')
+    .refine(
+      (v) => isValidRequiredField(v),
+      { message: 'Business Problem cannot contain only spaces' }
+    ),
+  expected_outcome: z.string()
+    .refine(
+      (v) => !v || isValidRequiredField(v),
+      { message: 'Expected Outcome cannot contain only spaces' }
+    )
+    .optional(),
+  steps_to_reproduce: z.string()
+    .refine(
+      (v) => !v || isValidRequiredField(v),
+      { message: 'Steps to Reproduce cannot contain only spaces' }
+    )
+    .optional(),
+  affected_area: z.string()
+    .min(3, 'Please describe the affected area')
+    .refine(
+      (v) => isValidRequiredField(v),
+      { message: 'Affected Area cannot contain only spaces' }
+    ),
+  additional_context: z.string()
+    .refine(
+      (v) => !v || isValidRequiredField(v),
+      { message: 'Additional Context cannot contain only spaces' }
+    )
+    .optional(),
 })
 
 type SubmitForm = z.infer<typeof submitSchema>
@@ -409,11 +458,19 @@ export function SubmitPage() {
   }
 
   const onSubmit = (data: SubmitForm) => {
+    // Sanitize all inputs by removing leading/trailing whitespace.
+    // This ensures consistent formatting and prevents issues from accidental spaces.
     const payload = {
-      ...data,
-      expected_outcome: data.expected_outcome || undefined,
-      steps_to_reproduce: data.steps_to_reproduce || undefined,
-      additional_context: data.additional_context || undefined,
+      request_type: data.request_type,
+      priority: data.priority,
+      pod: data.pod,
+      region: data.region,
+      title: sanitizeInput(data.title),
+      business_problem: sanitizeInput(data.business_problem),
+      affected_area: sanitizeInput(data.affected_area),
+      expected_outcome: data.expected_outcome ? sanitizeInput(data.expected_outcome) : undefined,
+      steps_to_reproduce: data.steps_to_reproduce ? sanitizeInput(data.steps_to_reproduce) : undefined,
+      additional_context: data.additional_context ? sanitizeInput(data.additional_context) : undefined,
     }
     createRequest(payload, {
       onSuccess: async (req) => {
