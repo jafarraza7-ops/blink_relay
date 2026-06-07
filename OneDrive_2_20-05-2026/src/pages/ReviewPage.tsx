@@ -212,7 +212,8 @@ export function ReviewPage() {
                 {ALLOWED_TRANSITIONS[req.status].length > 0 ? (
                   <>
                     <Select value={newStatus} onValueChange={(v) => { setNewStatus(v as RequestStatus); setRejectReason(''); setRejectComment('') }}>
-                      <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
+                      <SelectTrigger>// Show current status as hint in placeholder
+                      <SelectValue placeholder={`Change from ${STATUS_LABELS[req.status]}...`} /></SelectTrigger>
                       <SelectContent>
                         {ALLOWED_TRANSITIONS[req.status].map((s) => (
                           <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
