@@ -143,11 +143,9 @@ async def _queue_creation_tasks(req: Request, settings, logger) -> None:
     except Exception:
         _log_task_error("task_create_jsm_ticket", str(req.id), logger)
 
-    # Status notification (submitter)
-    try:
-        task_send_status_notification.delay(str(req.id))
-    except Exception:
-        _log_task_error("task_send_status_notification", str(req.id), logger)
+    # NOTE: We do NOT send task_send_status_notification on creation.
+    # That task is reserved for status changes (approve/reject/update).
+    # The request creation email already notifies the submitter.
 
     # Creation email with confirmation link
     try:
