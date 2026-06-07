@@ -191,6 +191,12 @@ def _log_task_error(task_name: str, req_id: str, logger) -> None:
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class RequestCreate(BaseModel):
+    """Request creation payload with validation for required fields.
+
+    Required fields (title, business_problem, affected_area) are validated
+    to ensure they contain non-whitespace content. Optional fields are only
+    validated if provided by the user.
+    """
     title: str
     request_type: RequestType
     pod: Pod
@@ -201,6 +207,54 @@ class RequestCreate(BaseModel):
     steps_to_reproduce: Optional[str] = None
     affected_area: str
     additional_context: Optional[str] = None
+
+    @field_validator('title', 'business_problem', 'affected_area', mode='before')
+    @classmethod
+    def validate_required_not_empty(cls, v: str) -> str:
+        """Validate that required fields are not empty or whitespace-only.
+
+        Strips leading/trailing whitespace and rejects if field becomes empty.
+        Prevents users from submitting requests with only spaces in required fields.
+
+        Args:
+            v: Input string value from the request payload
+
+        Returns:
+            Stripped string value
+
+        Raises:
+            ValueError: If the field is empty or contains only whitespace
+        """
+        if isinstance(v, str):
+            stripped = v.strip()
+            if not stripped:
+                raise ValueError('This field cannot be empty or contain only spaces')
+            return stripped
+        return v
+
+    @field_validator('expected_outcome', 'steps_to_reproduce', 'additional_context', mode='before')
+    @classmethod
+    def validate_optional_not_empty(cls, v: Optional[str]) -> Optional[str]:
+        """Validate optional fields: if provided, must not be whitespace-only.
+
+        If user provides an optional field, it must contain meaningful content.
+        Empty strings (field not provided) are allowed.
+
+        Args:
+            v: Input string value from the request payload
+
+        Returns:
+            Stripped string value or None
+
+        Raises:
+            ValueError: If the field contains only whitespace
+        """
+        if isinstance(v, str) and v:  # Only validate if non-empty string
+            stripped = v.strip()
+            if not stripped:
+                raise ValueError('This field cannot contain only spaces')
+            return stripped
+        return v
 
     @field_validator('region')
     @classmethod
@@ -221,6 +275,9 @@ class RequestUpdate(BaseModel):
     while the request is still under review (statuses listed in
     ``EDITABLE_STATUSES`` below). All fields are optional; unset fields are
     left unchanged.
+
+    When fields are provided, they must not be empty or whitespace-only,
+    following the same validation rules as RequestCreate.
     """
     title: Optional[str] = None
     priority: Optional[Priority] = None
@@ -230,6 +287,51 @@ class RequestUpdate(BaseModel):
     steps_to_reproduce: Optional[str] = None
     affected_area: Optional[str] = None
     additional_context: Optional[str] = None
+
+    @field_validator('title', 'business_problem', 'affected_area', mode='before')
+    @classmethod
+    def validate_required_not_empty(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that fields are not whitespace-only when provided.
+
+        When a required field is included in an update, it must contain
+        meaningful content (cannot be only spaces). Null/missing fields are allowed.
+
+        Args:
+            v: Input string value from the request payload
+
+        Returns:
+            Stripped string value or None
+
+        Raises:
+            ValueError: If the field contains only whitespace
+        """
+        if isinstance(v, str) and v:
+            stripped = v.strip()
+            if not stripped:
+                raise ValueError('This field cannot be empty or contain only spaces')
+            return stripped
+        return v
+
+    @field_validator('expected_outcome', 'steps_to_reproduce', 'additional_context', mode='before')
+    @classmethod
+    def validate_optional_not_empty(cls, v: Optional[str]) -> Optional[str]:
+        """Validate optional fields: if provided, must not be whitespace-only.
+
+        Args:
+            v: Input string value from the request payload
+
+        Returns:
+            Stripped string value or None
+
+        Raises:
+            ValueError: If the field contains only whitespace
+        """
+        if isinstance(v, str) and v:
+            stripped = v.strip()
+            if not stripped:
+                raise ValueError('This field cannot contain only spaces')
+            return stripped
+        return v
 
     @field_validator('region')
     @classmethod
