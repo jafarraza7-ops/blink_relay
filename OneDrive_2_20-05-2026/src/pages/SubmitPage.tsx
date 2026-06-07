@@ -14,7 +14,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { filesApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { formatBytes } from '@/lib/utils'
-import { PODS, POD_DESCRIPTIONS, REGIONS, REGION_LABELS, ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from '@/lib/constants'
+import { PODS, POD_LABELS, POD_DESCRIPTIONS, REGIONS, REGION_LABELS, ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from '@/lib/constants'
 import type { RequestType, Priority, Region } from '@/lib/types'
 
 // ── Schema ────────────────────────────────────────────────────────────────────
@@ -145,10 +145,14 @@ function Step1({ form }: { form: UseFormReturn<SubmitForm> }) {
         )}
       </div>
 
-      {/* Pod selection */}
+      {/* Pod selection — maps technical pod enum to user-friendly product area labels.
+          Philosophy: End users don't think in terms of engineering teams; they think
+          about "which Blink product area does this affect?" The Pod selection directly
+          maps to POD_LABELS (business-focused names) and POD_DESCRIPTIONS (impact-focused
+          explanations). The enum value remains unchanged for database compatibility. */}
       <div>
-        <h2 className="text-lg font-semibold mb-1">Engineering POD</h2>
-        <p className="text-sm text-muted-foreground mb-4">Select the team best suited to handle this request.</p>
+        <h2 className="text-lg font-semibold mb-1">What area of Blink does this affect?</h2>
+        <p className="text-sm text-muted-foreground mb-4">Choose the product or service area this request relates to.</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {PODS.map((p) => (
             <button
@@ -161,7 +165,7 @@ function Step1({ form }: { form: UseFormReturn<SubmitForm> }) {
               )}
               aria-pressed={pod === p}
             >
-              <span className="font-semibold text-sm">{p}</span>
+              <span className="font-semibold text-sm">{POD_LABELS[p]}</span>
               <span className="text-xs text-muted-foreground leading-tight mt-0.5">{POD_DESCRIPTIONS[p]}</span>
             </button>
           ))}
@@ -442,9 +446,9 @@ export function SubmitPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Submit a Tech Request</h1>
+        <h1 className="text-2xl font-bold">Submit a Request</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Route your feature requests and defect reports to the right Engineering POD.
+          Tell us about features you need, defects you found, or improvements you'd like to see.
         </p>
       </div>
 

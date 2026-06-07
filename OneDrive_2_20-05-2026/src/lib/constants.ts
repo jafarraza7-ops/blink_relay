@@ -181,16 +181,35 @@ export const ALLOWED_FILE_TYPES = [
   'text/csv',
 ]
 
+// ── Pod labels (user-friendly names) ──────────────────────────────────────────
+// Maps technical pod enum values to business-focused labels that end users understand.
+// Philosophy: Users think in terms of "which Blink product is affected?" not "which
+// engineering team owns this?" This constant is the single source of truth for all
+// pod labels across the app — update here and it propagates everywhere.
+
+export const POD_LABELS: Record<Pod, string> = {
+  Charger: 'Charging Stations',
+  Driver: 'Driver Mobile App',
+  Revenue: 'Payments & Billing',
+  Data: 'Data & Analytics',
+  DevOps: 'System & Infrastructure',
+  Denali: 'Enterprise Fleet',
+  Unknown: 'Not yet classified',
+}
+
 // ── Pod descriptions ──────────────────────────────────────────────────────────
-// Shown in the submit form to help requestors pick the right product pod.
+// Shown in the submit form to help requestors pick the right product area.
+// Each description focuses on business impact and user-facing features, not
+// technical implementation details. Guides end-users to select the correct area
+// for their specific problem.
 
 export const POD_DESCRIPTIONS: Record<Pod, string> = {
-  Charger: 'Hardware, firmware, and charger network',
-  Driver: 'Driver-facing apps and experience',
-  Revenue: 'Billing, payments, and revenue systems',
-  Data: 'Analytics, reporting, and data pipelines',
-  DevOps: 'Infrastructure, CI/CD, and platform',
-  Denali: 'Enterprise and fleet solutions',
+  Charger: 'Issues with charging hardware, stations, or network',
+  Driver: 'Problems with the mobile app drivers use',
+  Revenue: 'Payment processing, invoicing, or subscription issues',
+  Data: 'Reporting, dashboards, or data accuracy issues',
+  DevOps: 'Overall system stability or performance',
+  Denali: 'Fleet management or corporate solutions',
   Unknown: 'Not yet classified',
 }
 
