@@ -206,24 +206,24 @@ def task_send_claim_notification(self, request_id: str, pm_name: str, pm_email: 
             if not req:
                 return
 
-            # Get all PMs except the one who claimed it
-            pm_result = await db.execute(select(User))
-            pms = pm_result.scalars().all()
-            other_pm_emails = [pm.email for pm in pms if "ProductManager" in pm.roles and pm.email != pm_email]
+            # Get PM group and send to group distribution list, CC all individual PMs
+            from app.services.email_group_service import get_pm_group_emails
 
-            # Send single email to all other PMs, CC the claiming PM
-            if other_pm_emails:
+            group_email, individual_pm_emails = await get_pm_group_emails(db)
+
+            if group_email:
                 html_content = get_claim_notification_template(
                     req.reference_id or str(req.id),
                     req.title,
                     pm_name,
                     req.priority.value
                 )
+                # Send to PM group distribution list, CC all individual PMs
                 await NotificationService().send_email(
-                    to=other_pm_emails,
+                    to=group_email,
                     subject=f"[Blink Relay] {pm_name} is working on {req.reference_id or req.id}",
                     body_html=html_content,
-                    cc=pm_email,
+                    cc=individual_pm_emails if individual_pm_emails else None,
                 )
 
     try:
@@ -256,23 +256,23 @@ def task_send_unclaim_notification(self, request_id: str, pm_name: str):
             if not req:
                 return
 
-            # Get all PMs
-            pm_result = await db.execute(select(User))
-            pms = pm_result.scalars().all()
-            pm_emails = [pm.email for pm in pms if "ProductManager" in pm.roles]
+            # Get PM group and send to distribution list
+            from app.services.email_group_service import get_pm_group_emails
 
-            # Send single email to all PMs (user who unclaimed gets a copy)
-            if pm_emails:
+            group_email, individual_pm_emails = await get_pm_group_emails(db)
+
+            if group_email:
                 html_content = get_unclaim_notification_template(
                     req.reference_id or str(req.id),
                     req.title,
                     pm_name
                 )
-                # Include the releasing PM in the main recipients so they get a copy
+                # Send to PM group distribution list, CC all individual PMs
                 await NotificationService().send_email(
-                    to=pm_emails,
+                    to=group_email,
                     subject=f"[Blink Relay] {req.reference_id or req.id} is now available",
                     body_html=html_content,
+                    cc=individual_pm_emails if individual_pm_emails else None,
                 )
 
     try:

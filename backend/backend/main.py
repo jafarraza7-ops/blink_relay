@@ -71,6 +71,16 @@ async def lifespan(app: FastAPI):
         else:
             raise
 
+    # Initialize email groups (PM distribution list)
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.email_group_service import initialize_pm_group
+        async with AsyncSessionLocal() as db:
+            await initialize_pm_group(db)
+        logger.info("Email groups initialized")
+    except Exception:
+        logger.exception("Failed to initialize email groups — continuing anyway")
+
     yield
 
     # ── Shutdown ─────────────────────────────────────────────────────────────
