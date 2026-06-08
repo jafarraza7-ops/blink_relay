@@ -37,11 +37,15 @@ export interface BlinkRequest {
   additional_context: string | null
   submitter_email: string
   submitter_name: string
+  submitter_oid?: string
   jira_ticket_key: string | null
   jira_ticket_url: string | null
   jsm_ticket_key: string | null
   jsm_ticket_url: string | null
   jsm_resolved_at: string | null
+  claimed_by_oid: string | null
+  claimed_by_email: string | null
+  claimed_at: string | null
   created_at: string
   updated_at: string
 }

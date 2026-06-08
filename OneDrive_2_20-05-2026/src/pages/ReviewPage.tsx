@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Navigate, Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, ExternalLink, MessageSquare } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ExternalLink, MessageSquare, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -19,6 +19,7 @@ import { RequestTimeline } from '@/components/request/RequestTimeline'
 import { useRequest, useApproveRequest, useRejectRequest, useUpdateStatus, useSendClarification, useRequestTimeline } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/use-toast'
+import { workflowApi } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
 import { ALLOWED_TRANSITIONS, STATUS_LABELS, REGION_LABELS } from '@/lib/constants'
 import type { RequestStatus } from '@/lib/types'
@@ -36,7 +37,7 @@ export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
   const { data: req, isLoading, isError } = useRequest(id ?? '')
   const { data: timeline } = useRequestTimeline(id ?? '')
-  const { isPM } = useAuth()
+  const { isPM, user } = useAuth()
   const { toast } = useToast()
 
   const approve = useApproveRequest(id ?? '')
@@ -47,6 +48,7 @@ export function ReviewPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [rejectComment, setRejectComment] = useState('')
   const [clarifyText, setClarifyText] = useState('')
+  const [isClaiming, setIsClaiming] = useState(false)
 
   const isRejecting = newStatus === 'Rejected'
 
@@ -104,6 +106,36 @@ export function ReviewPage() {
       onSuccess: () => { toast({ title: 'Clarification sent', description: 'Requestor has been notified by email.' }); setClarifyText('') },
       onError: (err) => toast({ title: 'Failed to send', description: err.message, variant: 'destructive' }),
     })
+  }
+
+  const handleClaim = async () => {
+    setIsClaiming(true)
+    try {
+      await workflowApi.claimRequest(id ?? '')
+      toast({ title: 'Request claimed', description: 'You are now working on this request.' })
+      // Refetch request to update claimed_by info
+      window.location.reload()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      toast({ title: 'Failed to claim', description: message, variant: 'destructive' })
+    } finally {
+      setIsClaiming(false)
+    }
+  }
+
+  const handleUnclaim = async () => {
+    setIsClaiming(true)
+    try {
+      await workflowApi.unclaimRequest(id ?? '')
+      toast({ title: 'Claim released', description: 'Request is now available for others.' })
+      // Refetch request
+      window.location.reload()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      toast({ title: 'Failed to release', description: message, variant: 'destructive' })
+    } finally {
+      setIsClaiming(false)
+    }
   }
 
   return (
@@ -209,6 +241,35 @@ export function ReviewPage() {
                   <p className="text-xs text-blue-700">Implementation ticket — click to open in Jira.</p>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Claim status */}
+            {req.claimed_by_oid && (
+              <Card className="border-amber-200 bg-amber-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base text-amber-900">Claimed By</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm font-medium text-amber-900">{req.claimed_by_email}</p>
+                  {req.claimed_by_oid === user?.oid && (
+                    <Button variant="outline" size="sm" onClick={handleUnclaim} disabled={isClaiming}>
+                      {isClaiming ? 'Releasing…' : 'Release Claim'}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {!req.claimed_by_oid && isPM && (
+              <Button
+                className="w-full gap-2"
+                onClick={handleClaim}
+                disabled={isClaiming}
+                variant="outline"
+              >
+                <Lock className="h-4 w-4" />
+                {isClaiming ? 'Claiming…' : 'Claim This Request'}
+              </Button>
             )}
 
             {/* Status change */}

@@ -51,6 +51,8 @@ const API_ROUTES = {
   REQUEST_STATUS: (id: string) => `/requests/${id}/status`,
   REQUEST_APPROVE: (id: string) => `/requests/${id}/approve`,
   REQUEST_REJECT: (id: string) => `/requests/${id}/reject`,
+  REQUEST_CLAIM: (id: string) => `/requests/${id}/claim`,
+  REQUEST_UNCLAIM: (id: string) => `/requests/${id}/unclaim`,
   REQUEST_CANCEL: (id: string) => `/requests/${id}/cancel`,
   REQUEST_EXPORT: '/requests/export',
   REQUEST_MESSAGES: (id: string) => `/requests/${id}/messages`,
@@ -199,6 +201,14 @@ export const workflowApi = {
   /** Uses /reject (not /status) so the backend can fire the rejection email notification. */
   reject: (id: string, payload: RejectPayload): Promise<{ id: string; status: string }> =>
     apiClient.post(API_ROUTES.REQUEST_REJECT(id), payload).then((r) => r.data),
+
+  /** Claim a request — mark that this PM is working on it. */
+  claimRequest: (id: string): Promise<{ id: string; claimed_by: string; claimed_at: string }> =>
+    apiClient.post(API_ROUTES.REQUEST_CLAIM(id), {}).then((r) => r.data),
+
+  /** Unclaim a request — release it so others can work on it. */
+  unclaimRequest: (id: string): Promise<{ id: string; claimed_by: null; message: string }> =>
+    apiClient.post(API_ROUTES.REQUEST_UNCLAIM(id), {}).then((r) => r.data),
 
   /** Cancel a request — only available for requestors on their own requests. */
   cancel: (id: string): Promise<{ id: string; status: string }> =>
