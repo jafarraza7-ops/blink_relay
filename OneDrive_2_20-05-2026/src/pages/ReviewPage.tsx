@@ -15,7 +15,8 @@ import { PriorityBadge } from '@/components/request/PriorityBadge'
 import { TypeBadge } from '@/components/request/TypeBadge'
 import { MessageThread } from '@/components/request/MessageThread'
 import { FileAttachment } from '@/components/request/FileAttachment'
-import { useRequest, useApproveRequest, useRejectRequest, useUpdateStatus, useSendClarification } from '@/hooks/useRequests'
+import { RequestTimeline } from '@/components/request/RequestTimeline'
+import { useRequest, useApproveRequest, useRejectRequest, useUpdateStatus, useSendClarification, useRequestTimeline } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/use-toast'
 import { formatDateTime } from '@/lib/utils'
@@ -34,6 +35,7 @@ const REJECTION_REASONS = [
 export function ReviewPage() {
   const { id } = useParams<{ id: string }>()
   const { data: req, isLoading, isError } = useRequest(id ?? '')
+  const { data: timeline } = useRequestTimeline(id ?? '')
   const { isPM } = useAuth()
   const { toast } = useToast()
 
@@ -152,6 +154,16 @@ export function ReviewPage() {
             <CardHeader><CardTitle className="text-base">Conversation</CardTitle></CardHeader>
             <CardContent><MessageThread requestId={req.id} internalOnly /></CardContent>
           </Card>
+
+          {/* Timeline */}
+          {timeline && timeline.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Request Lifecycle</CardTitle></CardHeader>
+              <CardContent>
+                <RequestTimeline events={timeline} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Files */}
           <Card>
