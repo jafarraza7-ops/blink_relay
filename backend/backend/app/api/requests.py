@@ -425,7 +425,14 @@ async def create_request(
     await db.commit()  # commit before eager tasks read the same DB
 
     settings = get_settings()
-    await _queue_creation_tasks(req, settings, logger)
+    # Queue creation tasks in background (don't block API response)
+    # This prevents Celery eager mode from hanging the endpoint
+    import asyncio
+    try:
+        asyncio.create_task(_queue_creation_tasks(req, settings, logger))
+    except RuntimeError:
+        # create_task not available outside event loop, just don't queue
+        logger.warning("Could not queue background tasks - running outside event loop")
 
     return RequestResponse.model_validate(req)
 
