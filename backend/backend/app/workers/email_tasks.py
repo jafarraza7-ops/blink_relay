@@ -196,8 +196,7 @@ def task_send_claim_notification(self, request_id: str, pm_name: str, pm_email: 
         import uuid
         from sqlalchemy import select
         from app.core.database import AsyncSessionLocal
-        from app.models.request import Request
-        from app.models.auth import User
+        from app.models.request import Request, User
         from app.services.email_service import get_claim_notification_template
 
         async with AsyncSessionLocal() as db:
@@ -208,9 +207,9 @@ def task_send_claim_notification(self, request_id: str, pm_name: str, pm_email: 
                 return
 
             # Get all PMs except the one who claimed it
-            pm_result = await db.execute(select(User).where(User.roles.astext.contains("ProductManager")))
+            pm_result = await db.execute(select(User))
             pms = pm_result.scalars().all()
-            other_pm_emails = [pm.email for pm in pms if pm.email != pm_email]
+            other_pm_emails = [pm.email for pm in pms if "ProductManager" in pm.roles and pm.email != pm_email]
 
             # Send single email to all other PMs
             if other_pm_emails:
@@ -246,8 +245,7 @@ def task_send_unclaim_notification(self, request_id: str, pm_name: str):
         import uuid
         from sqlalchemy import select
         from app.core.database import AsyncSessionLocal
-        from app.models.request import Request
-        from app.models.auth import User
+        from app.models.request import Request, User
         from app.services.email_service import get_unclaim_notification_template
 
         async with AsyncSessionLocal() as db:
@@ -258,9 +256,9 @@ def task_send_unclaim_notification(self, request_id: str, pm_name: str):
                 return
 
             # Get all PMs
-            pm_result = await db.execute(select(User).where(User.roles.astext.contains("ProductManager")))
+            pm_result = await db.execute(select(User))
             pms = pm_result.scalars().all()
-            pm_emails = [pm.email for pm in pms]
+            pm_emails = [pm.email for pm in pms if "ProductManager" in pm.roles]
 
             # Send single email to all PMs
             if pm_emails:
