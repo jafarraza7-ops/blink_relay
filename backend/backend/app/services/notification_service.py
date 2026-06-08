@@ -30,10 +30,10 @@ def _html_wrap(body: str) -> str:
 
 
 class NotificationService:
-    async def _send_smtp(self, to: str | list[str], subject: str, body_html: str) -> None:
+    async def _send_smtp(self, to: str | list[str], subject: str, body_html: str, cc: str | list[str] | None = None) -> None:
         """Send email via SMTP with timeout protection.
 
-        Supports single recipient (str) or multiple recipients (list[str]).
+        Supports single/multiple recipients and optional CC recipients.
 
         IMPROVEMENT: Add 10-second timeout to prevent frontend request timeouts
         Problem: SMTP operations could hang indefinitely, blocking API responses
@@ -56,7 +56,20 @@ class NotificationService:
             msg["To"] = to
             recipients = [to]
 
+        # Handle CC recipients
+        cc_recipients = []
+        if cc:
+            if isinstance(cc, list):
+                msg["Cc"] = ", ".join(cc)
+                cc_recipients = cc
+            else:
+                msg["Cc"] = cc
+                cc_recipients = [cc]
+
         msg.attach(MIMEText(body_html, "html"))
+
+        # SMTP send requires all recipients (to + cc)
+        all_recipients = recipients + cc_recipients
 
         try:
             await asyncio.wait_for(
@@ -67,15 +80,16 @@ class NotificationService:
                     username=settings.SMTP_USER,
                     password=settings.SMTP_PASS,
                     start_tls=True,
+                    recipients=all_recipients,
                 ),
                 timeout=10  # 10 second timeout for SMTP operations
             )
-            logger.info("SMTP email sent to %s: %s", ", ".join(recipients), subject)
+            logger.info("SMTP email sent to %s (cc: %s): %s", ", ".join(recipients), ", ".join(cc_recipients) if cc_recipients else "none", subject)
         except asyncio.TimeoutError:
             # GRACEFUL DEGRADATION: Log but don't fail - user's action completes even if email is slow
-            logger.warning("SMTP timeout sending to %s, continuing anyway", ", ".join(recipients))
+            logger.warning("SMTP timeout sending to %s (cc: %s), continuing anyway", ", ".join(recipients), ", ".join(cc_recipients) if cc_recipients else "none")
 
-    async def _send_graph(self, to: str | list[str], subject: str, body_html: str) -> None:
+    async def _send_graph(self, to: str | list[str], subject: str, body_html: str, cc: str | list[str] | None = None) -> None:
         url = f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/oauth2/v2.0/token"
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(url, data={
@@ -87,13 +101,24 @@ class NotificationService:
             resp.raise_for_status()
             token = resp.json()["access_token"]
 
-        # Handle both single and multiple recipients
+        # Handle both single and multiple TO recipients
         if isinstance(to, list):
             to_recipients = [{"emailAddress": {"address": addr}} for addr in to]
             recipients_str = ", ".join(to)
         else:
             to_recipients = [{"emailAddress": {"address": to}}]
             recipients_str = to
+
+        # Handle CC recipients
+        cc_recipients = []
+        cc_str = ""
+        if cc:
+            if isinstance(cc, list):
+                cc_recipients = [{"emailAddress": {"address": addr}} for addr in cc]
+                cc_str = ", ".join(cc)
+            else:
+                cc_recipients = [{"emailAddress": {"address": cc}}]
+                cc_str = cc
 
         payload = {
             "message": {
@@ -102,6 +127,11 @@ class NotificationService:
                 "toRecipients": to_recipients,
             }
         }
+
+        # Add CC recipients if provided
+        if cc_recipients:
+            payload["message"]["ccRecipients"] = cc_recipients
+
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 f"{settings.GRAPH_API_BASE_URL}/users/{settings.JIRA_EMAIL}/sendMail",
@@ -111,26 +141,28 @@ class NotificationService:
             if not resp.is_success:
                 logger.error("Graph sendMail failed: %s %s", resp.status_code, resp.text)
             else:
-                logger.info("Graph email sent to %s: %s", recipients_str, subject)
+                cc_log = f" (cc: {cc_str})" if cc_str else ""
+                logger.info("Graph email sent to %s%s: %s", recipients_str, cc_log, subject)
 
-    async def send_email(self, to: str | list[str], subject: str, body_html: str) -> None:
+    async def send_email(self, to: str | list[str], subject: str, body_html: str, cc: str | list[str] | None = None) -> None:
         """Send email via configured backend (SMTP or Microsoft Graph).
 
-        Supports single recipient (str) or multiple recipients (list[str]).
+        Supports single/multiple recipients and optional CC recipients.
 
         IMPROVEMENT: Enhanced error logging with recipient and error details
         Ensures silent failures are discoverable in logs without blocking the API request.
         """
         try:
             if settings.EMAIL_BACKEND == "smtp":
-                await self._send_smtp(to, subject, body_html)
+                await self._send_smtp(to, subject, body_html, cc=cc)
             else:
-                await self._send_graph(to, subject, body_html)
+                await self._send_graph(to, subject, body_html, cc=cc)
         except Exception as e:
             # IMPROVEMENT: Log recipient and error message for debugging
             # Exception is caught to prevent blocking API responses; errors are logged for monitoring
             recipients_str = ", ".join(to) if isinstance(to, list) else to
-            logger.exception(f"send_email error to {recipients_str}: {str(e)} — swallowing to avoid blocking caller")
+            cc_str = f", cc={', '.join(cc) if isinstance(cc, list) else cc}" if cc else ""
+            logger.exception(f"send_email error to {recipients_str}{cc_str}: {str(e)} — swallowing to avoid blocking caller")
 
     async def notify_submitted(self, submitter_email: str, title: str, reference_id: str) -> None:
         subject = f"[Blink Relay] Request received: {reference_id}"

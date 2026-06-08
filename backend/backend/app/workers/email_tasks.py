@@ -211,7 +211,7 @@ def task_send_claim_notification(self, request_id: str, pm_name: str, pm_email: 
             pms = pm_result.scalars().all()
             other_pm_emails = [pm.email for pm in pms if "ProductManager" in pm.roles and pm.email != pm_email]
 
-            # Send single email to all other PMs
+            # Send single email to all other PMs, CC the claiming PM
             if other_pm_emails:
                 html_content = get_claim_notification_template(
                     req.reference_id or str(req.id),
@@ -223,6 +223,7 @@ def task_send_claim_notification(self, request_id: str, pm_name: str, pm_email: 
                     to=other_pm_emails,
                     subject=f"[Blink Relay] {pm_name} is working on {req.reference_id or req.id}",
                     body_html=html_content,
+                    cc=pm_email,
                 )
 
     try:
@@ -260,13 +261,14 @@ def task_send_unclaim_notification(self, request_id: str, pm_name: str):
             pms = pm_result.scalars().all()
             pm_emails = [pm.email for pm in pms if "ProductManager" in pm.roles]
 
-            # Send single email to all PMs
+            # Send single email to all PMs (user who unclaimed gets a copy)
             if pm_emails:
                 html_content = get_unclaim_notification_template(
                     req.reference_id or str(req.id),
                     req.title,
                     pm_name
                 )
+                # Include the releasing PM in the main recipients so they get a copy
                 await NotificationService().send_email(
                     to=pm_emails,
                     subject=f"[Blink Relay] {req.reference_id or req.id} is now available",
