@@ -31,6 +31,7 @@ import type {
   RespondPayload,
   SimilarRequest,
   StatusUpdatePayload,
+  TimelineEvent,
   User,
 } from './types'
 
@@ -46,6 +47,7 @@ const API_ROUTES = {
   REQUESTS_MINE: '/requests/mine',
   REQUEST_DETAIL: (id: string) => `/requests/${id}`,
   REQUEST_SIMILAR: (id: string) => `/requests/${id}/similar`,
+  REQUEST_TIMELINE: (id: string) => `/requests/${id}/timeline`,
   REQUEST_STATUS: (id: string) => `/requests/${id}/status`,
   REQUEST_APPROVE: (id: string) => `/requests/${id}/approve`,
   REQUEST_REJECT: (id: string) => `/requests/${id}/reject`,
@@ -173,6 +175,9 @@ export const requestsApi = {
 
   getSimilar: (id: string, limit: number = 5): Promise<SimilarRequest[]> =>
     apiClient.get<SimilarRequest[]>(API_ROUTES.REQUEST_SIMILAR(id), { params: { limit } }).then((r) => r.data),
+
+  getTimeline: (id: string): Promise<TimelineEvent[]> =>
+    apiClient.get<TimelineEvent[]>(API_ROUTES.REQUEST_TIMELINE(id)).then((r) => r.data),
 
   update: (id: string, payload: RequestUpdate): Promise<BlinkRequest> =>
     apiClient.patch<BlinkRequest>(API_ROUTES.REQUEST_DETAIL(id), payload).then((r) => r.data),

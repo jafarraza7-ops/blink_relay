@@ -150,3 +150,12 @@ export interface RespondPayload {
   responder_name?: string
   responder_email?: string
 }
+
+export interface TimelineEvent {
+  timestamp: string
+  action: string
+  actor_name: string
+  actor_email?: string
+  details: string
+  status?: string
+}

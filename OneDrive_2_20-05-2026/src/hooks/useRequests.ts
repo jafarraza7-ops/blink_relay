@@ -25,6 +25,7 @@ import type {
   RequestUpdate,
   RespondPayload,
   StatusUpdatePayload,
+  TimelineEvent,
 } from '@/lib/types'
 import { threadKeys } from './useThread'
 
@@ -40,6 +41,8 @@ export const requestKeys = {
   mineList: (filters: RequestFilters) => [...requestKeys.mineLists(), filters] as const,
   details: () => [...requestKeys.all, 'detail'] as const,
   detail: (id: string) => [...requestKeys.details(), id] as const,
+  timelines: () => [...requestKeys.all, 'timeline'] as const,
+  timeline: (id: string) => [...requestKeys.timelines(), id] as const,
 }
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -75,6 +78,14 @@ export function useSimilarRequests(id: string | null) {
   return useQuery({
     queryKey: [...requestKeys.detail(id ?? ''), 'similar'],
     queryFn: () => requestsApi.getSimilar(id!),
+    enabled: !!id,
+  })
+}
+
+export function useRequestTimeline(id: string | null) {
+  return useQuery({
+    queryKey: requestKeys.timeline(id ?? ''),
+    queryFn: () => (id ? requestsApi.getTimeline(id) : Promise.resolve([])),
     enabled: !!id,
   })
 }
