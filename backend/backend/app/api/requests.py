@@ -48,6 +48,7 @@ from app.models.request import (
     Priority,
     RequestType,
     TimelineEventResponse,
+    User,
 )
 from app.workers.tasks import (
     route_request_to_pod,
@@ -670,10 +671,22 @@ async def get_request_timeline(
         if log.action in ["status_change", "approved", "rejected", "info_provided", "request_cancelled"]:
             action_label = log.action.replace("_", " ").title()
             details = f"{action_label}: {log.previous_value} → {log.new_value}"
+            # Get actor name from User table or use email or default to "System"
+            actor_name = "System"
+            if log.actor_email:
+                # Try to find user in database to get display name
+                user_result = await db.execute(
+                    select(User).where(User.email == log.actor_email)
+                )
+                user = user_result.scalar_one_or_none()
+                if user:
+                    actor_name = user.display_name or user.email
+                else:
+                    actor_name = log.actor_email
             events.append(TimelineEventResponse(
                 timestamp=log.created_at,
                 action=log.action,
-                actor_name=log.actor_oid if not log.actor_oid or log.actor_oid == "external" else log.actor_oid,
+                actor_name=actor_name,
                 actor_email=log.actor_email,
                 details=details,
                 status=log.new_value,
