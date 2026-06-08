@@ -195,6 +195,23 @@ class EmailLoginToken(Base):
     
     user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[user_id])
 
+class TimelineEventResponse(BaseModel):
+    """Single event in request lifecycle timeline.
+
+    Represents a point-in-time change to the request: submission, status change,
+    approval, rejection, or clarification. Used to render the visual timeline
+    in the request detail view.
+    """
+    timestamp: datetime
+    action: str  # "submitted", "status_change", "approved", "rejected", "info_provided", etc.
+    actor_name: str  # Who made the change
+    actor_email: Optional[str]
+    details: str  # Human-readable description
+    status: Optional[str]  # New status after action
+
+    model_config = {"from_attributes": True}
+
+
 class Request(Base):
     """Core intake record. One row per stakeholder submission."""
     __tablename__ = "requests"

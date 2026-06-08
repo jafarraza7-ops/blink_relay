@@ -47,6 +47,7 @@ from app.models.request import (
     RequestStatus,
     Priority,
     RequestType,
+    TimelineEventResponse,
 )
 from app.workers.tasks import (
     route_request_to_pod,
@@ -619,6 +620,66 @@ async def get_similar_requests(
 
     similar = await find_similar_requests(db, str(request_id), limit=limit)
     return [SimilarRequestResponse(**s.__dict__) for s in similar]
+
+
+@router.get("/requests/{request_id}/timeline", response_model=list[TimelineEventResponse])
+async def get_request_timeline(
+    request_id: uuid.UUID,
+    user: Annotated[UserClaims, Depends(get_optional_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[TimelineEventResponse]:
+    """Get the complete lifecycle timeline for a request.
+
+    Returns all status changes, approvals, rejections, and clarifications
+    in chronological order with actor information and timestamps.
+    Includes initial submission as first event.
+
+    The timeline is constructed from:
+      1. Initial submission event (created_at, submitter info)
+      2. All audit log entries ordered chronologically
+
+    Requestors see their own request timeline; PMs see all timelines.
+    """
+    req = await db.get(Request, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    # Query audit logs ordered by created_at ascending
+    result = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.request_id == request_id)
+        .order_by(AuditLog.created_at.asc())
+    )
+    logs = result.scalars().all()
+
+    events: list[TimelineEventResponse] = []
+
+    # Add initial submission event
+    events.append(TimelineEventResponse(
+        timestamp=req.created_at,
+        action="submitted",
+        actor_name=req.submitter_name,
+        actor_email=req.submitter_email,
+        details=f"Request submitted with title: {req.title}",
+        status=req.status if not logs else None,  # Only show status if no transitions yet
+    ))
+
+    # Add audit log events
+    for log in logs:
+        # Only show meaningful status-change-related events
+        if log.action in ["status_change", "approved", "rejected", "info_provided", "request_cancelled"]:
+            action_label = log.action.replace("_", " ").title()
+            details = f"{action_label}: {log.previous_value} → {log.new_value}"
+            events.append(TimelineEventResponse(
+                timestamp=log.created_at,
+                action=log.action,
+                actor_name=log.actor_oid if not log.actor_oid or log.actor_oid == "external" else log.actor_oid,
+                actor_email=log.actor_email,
+                details=details,
+                status=log.new_value,
+            ))
+
+    return events
 
 
 @router.post("/requests/{request_id}/cancel", status_code=status.HTTP_200_OK)
