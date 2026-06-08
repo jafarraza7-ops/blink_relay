@@ -410,7 +410,7 @@ async def create_request(
     accepted — the submitter fields fall back to anonymous identifiers in that case.
     """
     submitter_oid = user.oid if user else "anonymous"
-    submitter_email = user.email if user else "unknown@external"
+    submitter_email = user.email if user else "intake-system@blinkcharging.com"
     submitter_name = user.name if user else "External User"
 
     req = Request(
