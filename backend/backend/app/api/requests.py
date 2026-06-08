@@ -623,7 +623,6 @@ async def get_similar_requests(
     return [SimilarRequestResponse(**s.__dict__) for s in similar]
 
 
-@router.get("/requests/{request_id}/timeline", response_model=list[TimelineEventResponse])
 def _format_status_value(value: str) -> str:
     """Convert status enum string to user-friendly text.
     
@@ -661,6 +660,7 @@ def _format_timeline_message(action: str, previous_value: str, new_value: str) -
     return action_messages.get(action, f'{action.replace("_", " ").title()} - {prev_formatted} to {new_formatted}')
 
 
+@router.get("/requests/{request_id}/timeline", response_model=list[TimelineEventResponse])
 async def get_request_timeline(
     request_id: uuid.UUID,
     user: Annotated[UserClaims, Depends(get_optional_user)],
