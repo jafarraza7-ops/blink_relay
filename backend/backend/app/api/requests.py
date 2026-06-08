@@ -624,6 +624,43 @@ async def get_similar_requests(
 
 
 @router.get("/requests/{request_id}/timeline", response_model=list[TimelineEventResponse])
+def _format_status_value(value: str) -> str:
+    """Convert status enum string to user-friendly text.
+    
+    Removes 'RequestStatus.' prefix and converts to title case.
+    Example: 'RequestStatus.SUBMITTED' → 'Submitted'
+    """
+    if not value:
+        return value
+    # Remove 'RequestStatus.' prefix if present
+    if value.startswith('RequestStatus.'):
+        value = value.replace('RequestStatus.', '')
+    # Convert SNAKE_CASE to Title Case
+    return value.replace('_', ' ').title()
+
+
+def _format_timeline_message(action: str, previous_value: str, new_value: str) -> str:
+    """Generate user-friendly timeline message based on action and status change.
+    
+    Examples:
+    - 'approved' + 'SUBMITTED' + 'APPROVED' → 'Approved - moved to Approved'
+    - 'rejected' + 'IN_REVIEW' + 'REJECTED' → 'Rejected - request was rejected'
+    - 'status_change' + 'SUBMITTED' + 'IN_REVIEW' → 'Status updated - Submitted to In Review'
+    """
+    prev_formatted = _format_status_value(previous_value)
+    new_formatted = _format_status_value(new_value)
+    
+    action_messages = {
+        'approved': f'Approved - request moved to {new_formatted}',
+        'rejected': 'Rejected - request was rejected',
+        'status_change': f'Status updated - {prev_formatted} to {new_formatted}',
+        'info_provided': 'Info provided - request moved to Info Received',
+        'request_cancelled': 'Cancelled - request was cancelled',
+    }
+    
+    return action_messages.get(action, f'{action.replace("_", " ").title()} - {prev_formatted} to {new_formatted}')
+
+
 async def get_request_timeline(
     request_id: uuid.UUID,
     user: Annotated[UserClaims, Depends(get_optional_user)],
@@ -669,8 +706,7 @@ async def get_request_timeline(
     for log in logs:
         # Only show meaningful status-change-related events
         if log.action in ["status_change", "approved", "rejected", "info_provided", "request_cancelled"]:
-            action_label = log.action.replace("_", " ").title()
-            details = f"{action_label}: {log.previous_value} → {log.new_value}"
+            details = _format_timeline_message(log.action, log.previous_value or "", log.new_value or "")
             # Get actor name from User table or use email or default to "System"
             actor_name = "System"
             if log.actor_email:
