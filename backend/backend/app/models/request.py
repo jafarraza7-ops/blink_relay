@@ -199,11 +199,20 @@ class TimelineEventResponse(BaseModel):
     """Single event in request lifecycle timeline.
 
     Represents a point-in-time change to the request: submission, status change,
-    approval, rejection, or clarification. Used to render the visual timeline
-    in the request detail view.
+    approval, rejection, clarification, or claim status. Used to render the visual
+    timeline in the request detail view.
+
+    action types include:
+    - "submitted" — request created by requestor
+    - "status_change" — status transitioned
+    - "approved" — PM approved the request
+    - "rejected" — PM rejected the request
+    - "claimed" — PM claimed the request (started working on it)
+    - "unclaimed" — PM released their claim on the request
+    - "info_provided" — requestor provided clarification
     """
     timestamp: datetime
-    action: str  # "submitted", "status_change", "approved", "rejected", "info_provided", etc.
+    action: str  # "submitted", "status_change", "approved", "rejected", "claimed", "unclaimed", "info_provided", etc.
     actor_name: str  # Who made the change
     actor_email: Optional[str]
     details: str  # Human-readable description
@@ -273,6 +282,15 @@ class Request(Base):
     # a reminder is sent to all PMs. This field is updated to the current timestamp
     # after the reminder is sent, allowing another reminder after 24+ hours have passed.
     reminder_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # PM claim tracking — prevents duplicate effort when multiple PMs work on same request
+    # claimed_by_oid: Azure AD object ID of the PM currently working on this request
+    # claimed_by_email: Email of the PM (for fallback/audit when user account is deleted)
+    # claimed_at: Timestamp when the claim was made (immutable once set, cleared on unclaim)
+    # Prevents race conditions and duplicate effort. Only PMs can claim requests.
+    claimed_by_oid: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
+    claimed_by_email: Mapped[Optional[str]] = mapped_column(String(254), nullable=True)
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
