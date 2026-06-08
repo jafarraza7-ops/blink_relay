@@ -581,3 +581,109 @@ def get_pending_reminder_template(reference_id: str, title: str, submitter_name:
     </div>
 </body>
 </html>"""
+
+
+def get_claim_notification_template(reference_id: str, title: str, pm_name: str, priority: str) -> str:
+    """Email template when a PM claims a request.
+
+    Notifies other team members that a PM is working on this request.
+    """
+    priority_color = {
+        "Critical": "#ef4444",
+        "High": "#f97316",
+        "Medium": "#f59e0b",
+        "Low": "#84cc16",
+    }.get(priority, "#6b7280")
+
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f9fafb; margin: 0; padding: 0; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .email-box {{ background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }}
+        .header {{ display: flex; align-items: center; margin-bottom: 30px; }}
+        .logo {{ width: 32px; height: 32px; background: linear-gradient(135deg, #0066cc 0%, #004499 100%); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 10px; }}
+        .brand {{ color: #0066cc; font-size: 16px; font-weight: 600; }}
+        h2 {{ color: #111827; margin: 0 0 10px 0; font-size: 24px; }}
+        p {{ color: #4b5563; font-size: 14px; line-height: 1.6; margin: 15px 0; }}
+        .info-box {{ background: #f0f9ff; border-left: 4px solid #0066cc; padding: 16px; border-radius: 4px; margin: 20px 0; }}
+        .pm-name {{ font-size: 16px; font-weight: 600; color: #0066cc; margin: 10px 0; }}
+        .priority-badge {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; color: white; background-color: {priority_color}; }}
+        .footer {{ color: #9ca3af; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="email-box">
+            <div class="header">
+                <div class="logo">⚡</div>
+                <div class="brand">Blink Relay</div>
+            </div>
+            <h2>Request Claimed</h2>
+            <p>Hi there,</p>
+            <p><strong>{pm_name}</strong> is now working on the following request:</p>
+            <div class="info-box">
+                <p><strong>{reference_id}</strong></p>
+                <p>{title}</p>
+                <p>Priority: <span class="priority-badge">{priority}</span></p>
+            </div>
+            <p>Please coordinate with <strong>{pm_name}</strong> if you also need to work on this request to avoid duplicate effort.</p>
+            <div class="footer">
+                <p>Blink Relay • Product Intake System</p>
+                <p>© 2026 Blink Charging. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>"""
+
+
+def get_unclaim_notification_template(reference_id: str, title: str, pm_name: str) -> str:
+    """Email template when a PM releases a claimed request.
+
+    Notifies team members that a request is available to work on.
+    """
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f9fafb; margin: 0; padding: 0; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .email-box {{ background: white; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }}
+        .header {{ display: flex; align-items: center; margin-bottom: 30px; }}
+        .logo {{ width: 32px; height: 32px; background: linear-gradient(135deg, #0066cc 0%, #004499 100%); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; margin-right: 10px; }}
+        .brand {{ color: #0066cc; font-size: 16px; font-weight: 600; }}
+        h2 {{ color: #111827; margin: 0 0 10px 0; font-size: 24px; }}
+        p {{ color: #4b5563; font-size: 14px; line-height: 1.6; margin: 15px 0; }}
+        .info-box {{ background: #f0fdf4; border-left: 4px solid #10b981; padding: 16px; border-radius: 4px; margin: 20px 0; }}
+        .footer {{ color: #9ca3af; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="email-box">
+            <div class="header">
+                <div class="logo">⚡</div>
+                <div class="brand">Blink Relay</div>
+            </div>
+            <h2>Request Available</h2>
+            <p>Hi there,</p>
+            <p><strong>{pm_name}</strong> has released their claim on the following request:</p>
+            <div class="info-box">
+                <p><strong>{reference_id}</strong></p>
+                <p>{title}</p>
+            </div>
+            <p>This request is now available for other team members to work on. Please coordinate within the team to determine who will take it next.</p>
+            <div class="footer">
+                <p>Blink Relay • Product Intake System</p>
+                <p>© 2026 Blink Charging. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>"""
