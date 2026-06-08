@@ -206,24 +206,25 @@ def task_send_claim_notification(self, request_id: str, pm_name: str, pm_email: 
             if not req:
                 return
 
-            # Get PM group and send to group distribution list, CC all individual PMs
+            # Get PM group emails and send to all individual PMs
             from app.services.email_group_service import get_pm_group_emails
 
             group_email, individual_pm_emails = await get_pm_group_emails(db)
 
-            if group_email:
+            # Send to all individual PMs (group email is a reference, not a mailbox)
+            if individual_pm_emails:
                 html_content = get_claim_notification_template(
                     req.reference_id or str(req.id),
                     req.title,
                     pm_name,
                     req.priority.value
                 )
-                # Send to PM group distribution list, CC all individual PMs
+                # Send to all PMs with group email as reference in CC
                 await NotificationService().send_email(
-                    to=group_email,
+                    to=individual_pm_emails,
                     subject=f"[Blink Relay] {pm_name} is working on {req.reference_id or req.id}",
                     body_html=html_content,
-                    cc=individual_pm_emails if individual_pm_emails else None,
+                    cc=group_email if group_email else None,
                 )
 
     try:
@@ -256,23 +257,24 @@ def task_send_unclaim_notification(self, request_id: str, pm_name: str):
             if not req:
                 return
 
-            # Get PM group and send to distribution list
+            # Get PM group emails and send to all individual PMs
             from app.services.email_group_service import get_pm_group_emails
 
             group_email, individual_pm_emails = await get_pm_group_emails(db)
 
-            if group_email:
+            # Send to all individual PMs (group email is a reference, not a mailbox)
+            if individual_pm_emails:
                 html_content = get_unclaim_notification_template(
                     req.reference_id or str(req.id),
                     req.title,
                     pm_name
                 )
-                # Send to PM group distribution list, CC all individual PMs
+                # Send to all PMs with group email as reference in CC
                 await NotificationService().send_email(
-                    to=group_email,
+                    to=individual_pm_emails,
                     subject=f"[Blink Relay] {req.reference_id or req.id} is now available",
                     body_html=html_content,
-                    cc=individual_pm_emails if individual_pm_emails else None,
+                    cc=group_email if group_email else None,
                 )
 
     try:
