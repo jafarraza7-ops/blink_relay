@@ -232,11 +232,11 @@ class Request(Base):
 
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     request_type: Mapped[RequestType] = mapped_column(
-        Enum(RequestType, name="request_type", native_enum=False), nullable=False
+        Enum(RequestType, name="request_type", native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False
     )
-    pod: Mapped[Pod] = mapped_column(Enum(Pod, name="pod", native_enum=False), nullable=False)
+    pod: Mapped[Pod] = mapped_column(Enum(Pod, name="pod", native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)
     priority: Mapped[Priority] = mapped_column(
-        Enum(Priority, name="priority", native_enum=False), nullable=False, default=Priority.MEDIUM
+        Enum(Priority, name="priority", native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=Priority.MEDIUM
     )
     # Stored as a JSON array (e.g. ["NA", "UK"]). Migration 007 changed this
     # from a single VARCHAR column, so always treat it as a list in code.
@@ -244,7 +244,7 @@ class Request(Base):
         JSON, nullable=False, default=lambda: ["NA"]
     )
     status: Mapped[RequestStatus] = mapped_column(
-        Enum(RequestStatus, name="request_status", native_enum=False),
+        Enum(RequestStatus, name="request_status", native_enum=False, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=RequestStatus.SUBMITTED,
     )
@@ -330,7 +330,7 @@ class Message(Base):
     # not to the requestor or via JSM.
     is_internal: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     message_type: Mapped[MessageType] = mapped_column(
-        Enum(MessageType, name="message_type_enum", native_enum=False),
+        Enum(MessageType, name="message_type_enum", native_enum=False, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=MessageType.COMMENT,
     )
