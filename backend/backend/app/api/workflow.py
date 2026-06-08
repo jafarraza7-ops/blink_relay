@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,10 @@ from app.workers.tasks import (
     task_jira_add_comment,
     task_jsm_add_comment,
     task_send_status_notification,
+)
+from app.workers.email_tasks import (
+    task_send_claim_notification,
+    task_send_unclaim_notification,
 )
 
 router = APIRouter(tags=["workflow"])
@@ -309,3 +314,113 @@ async def backfill_jsm_tickets(
             logger.warning("Failed to queue JSM task for %s", req.id, exc_info=True)
 
     return {"queued": queued, "total_missing": len(requests)}
+
+
+@router.post("/requests/{request_id}/claim", response_model=dict)
+async def claim_request(
+    request_id: uuid.UUID,
+    user: Annotated[UserClaims, Depends(require_role(Role.PRODUCT_MANAGER))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Claim a request — mark that this PM is working on it.
+
+    Prevents other PMs from duplicating effort. Only ProductManagers can claim.
+    If already claimed by someone else, raises 409 Conflict.
+    If already claimed by current user, returns success (idempotent).
+
+    This notifies all other PMs via email that the request is being worked on.
+    """
+    req = await _get_request_or_404(request_id, db)
+
+    # Check if already claimed by someone else
+    if req.claimed_by_oid and req.claimed_by_oid != user.oid:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Request already claimed by another PM",
+        )
+
+    # If not already claimed, claim it now
+    if not req.claimed_by_oid:
+        req.claimed_by_oid = user.oid
+        req.claimed_by_email = user.email
+        req.claimed_at = datetime.now(timezone.utc)
+
+        # Add audit log and message
+        _add_audit(db, req, user, "claimed")
+        db.add(Message(
+            request_id=req.id,
+            author_oid=user.oid,
+            author_email=user.email,
+            author_name=user.name,
+            body=f"{user.name} claimed this request and is working on it.",
+            is_internal=False,
+            message_type=MessageType.STATUS_CHANGE,
+        ))
+
+        await db.commit()
+
+        # Queue notification email to other PMs
+        try:
+            task_send_claim_notification.delay(str(req.id), user.name, user.email)
+        except Exception:
+            logger.warning("Failed to queue claim notification", exc_info=True)
+
+    return {
+        "id": str(req.id),
+        "claimed_by": user.name,
+        "claimed_at": req.claimed_at,
+    }
+
+
+@router.post("/requests/{request_id}/unclaim", response_model=dict)
+async def unclaim_request(
+    request_id: uuid.UUID,
+    user: Annotated[UserClaims, Depends(require_role(Role.PRODUCT_MANAGER))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Release a claimed request — indicate you're no longer working on it.
+
+    Only the PM who claimed the request can unclaim it (or an admin).
+    Returns 403 if different PM tries to unclaim.
+    Returns success with claimed_by=None if request was not claimed.
+    """
+    req = await _get_request_or_404(request_id, db)
+
+    # Check if claimed by current user
+    if req.claimed_by_oid and req.claimed_by_oid != user.oid:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the PM who claimed this request can unclaim it",
+        )
+
+    if req.claimed_by_oid:
+        # Clear the claim
+        req.claimed_by_oid = None
+        req.claimed_by_email = None
+        req.claimed_at = None
+
+        # Add audit log and message
+        _add_audit(db, req, user, "unclaimed")
+        db.add(Message(
+            request_id=req.id,
+            author_oid=user.oid,
+            author_email=user.email,
+            author_name=user.name,
+            body=f"{user.name} released their claim on this request.",
+            is_internal=False,
+            message_type=MessageType.STATUS_CHANGE,
+        ))
+
+        await db.commit()
+
+        # Queue unclaim notification
+        try:
+            task_send_unclaim_notification.delay(str(req.id), user.name)
+        except Exception:
+            logger.warning("Failed to queue unclaim notification", exc_info=True)
+
+    return {
+        "id": str(req.id),
+        "claimed_by": None,
+        "message": "Request claim released",
+    }

@@ -179,3 +179,101 @@ def task_send_pending_reminder_email(self, email: str, reference_id: str, title:
         _run(_send())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task(bind=True, max_retries=3)
+def task_send_claim_notification(self, request_id: str, pm_name: str, pm_email: str):
+    """Notify other PMs that someone claimed a request.
+
+    Helps prevent duplicate effort by alerting team when a request is being worked on.
+    Sends email to all PMs except the one who claimed it.
+
+    Args:
+        request_id: UUID of the request being claimed
+        pm_name: Name of the PM who claimed the request
+        pm_email: Email of the PM who claimed the request
+    """
+    async def _send():
+        import uuid
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.models.request import Request
+        from app.models.auth import User
+        from app.services.email_service import get_claim_notification_template
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Request).where(Request.id == uuid.UUID(request_id)))
+            req = result.scalar_one_or_none()
+
+            if not req:
+                return
+
+            # Get all PMs
+            pm_result = await db.execute(select(User).where(User.roles.astext.contains("ProductManager")))
+            pms = pm_result.scalars().all()
+
+            # Send to all PMs except the one who claimed it
+            for pm in pms:
+                if pm.email != pm_email:
+                    html_content = get_claim_notification_template(
+                        req.reference_id or str(req.id),
+                        req.title,
+                        pm_name,
+                        req.priority.value
+                    )
+                    await NotificationService().send_email(
+                        to=pm.email,
+                        subject=f"[Blink Relay] {pm_name} is working on {req.reference_id or req.id}",
+                        body_html=html_content,
+                    )
+
+    try:
+        _run(_send())
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task(bind=True, max_retries=3)
+def task_send_unclaim_notification(self, request_id: str, pm_name: str):
+    """Notify team that a PM released a claimed request.
+
+    Lets other PMs know the request is available to work on again.
+
+    Args:
+        request_id: UUID of the request being released
+        pm_name: Name of the PM who released the claim
+    """
+    async def _send():
+        import uuid
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.models.request import Request
+        from app.models.auth import User
+        from app.services.email_service import get_unclaim_notification_template
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Request).where(Request.id == uuid.UUID(request_id)))
+            req = result.scalar_one_or_none()
+
+            if not req:
+                return
+
+            pm_result = await db.execute(select(User).where(User.roles.astext.contains("ProductManager")))
+            pms = pm_result.scalars().all()
+
+            for pm in pms:
+                html_content = get_unclaim_notification_template(
+                    req.reference_id or str(req.id),
+                    req.title,
+                    pm_name
+                )
+                await NotificationService().send_email(
+                    to=pm.email,
+                    subject=f"[Blink Relay] {req.reference_id or req.id} is now available",
+                    body_html=html_content,
+                )
+
+    try:
+        _run(_send())
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
