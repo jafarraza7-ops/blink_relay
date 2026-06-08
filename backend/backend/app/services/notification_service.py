@@ -30,8 +30,10 @@ def _html_wrap(body: str) -> str:
 
 
 class NotificationService:
-    async def _send_smtp(self, to: str, subject: str, body_html: str) -> None:
+    async def _send_smtp(self, to: str | list[str], subject: str, body_html: str) -> None:
         """Send email via SMTP with timeout protection.
+
+        Supports single recipient (str) or multiple recipients (list[str]).
 
         IMPROVEMENT: Add 10-second timeout to prevent frontend request timeouts
         Problem: SMTP operations could hang indefinitely, blocking API responses
@@ -45,7 +47,15 @@ class NotificationService:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = sender
-        msg["To"] = to
+
+        # Handle both single and multiple recipients
+        if isinstance(to, list):
+            msg["To"] = ", ".join(to)
+            recipients = to
+        else:
+            msg["To"] = to
+            recipients = [to]
+
         msg.attach(MIMEText(body_html, "html"))
 
         try:
@@ -60,12 +70,12 @@ class NotificationService:
                 ),
                 timeout=10  # 10 second timeout for SMTP operations
             )
-            logger.info("SMTP email sent to %s: %s", to, subject)
+            logger.info("SMTP email sent to %s: %s", ", ".join(recipients), subject)
         except asyncio.TimeoutError:
             # GRACEFUL DEGRADATION: Log but don't fail - user's action completes even if email is slow
-            logger.warning("SMTP timeout sending to %s, continuing anyway", to)
+            logger.warning("SMTP timeout sending to %s, continuing anyway", ", ".join(recipients))
 
-    async def _send_graph(self, to: str, subject: str, body_html: str) -> None:
+    async def _send_graph(self, to: str | list[str], subject: str, body_html: str) -> None:
         url = f"https://login.microsoftonline.com/{settings.AZURE_TENANT_ID}/oauth2/v2.0/token"
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(url, data={
@@ -77,11 +87,19 @@ class NotificationService:
             resp.raise_for_status()
             token = resp.json()["access_token"]
 
+        # Handle both single and multiple recipients
+        if isinstance(to, list):
+            to_recipients = [{"emailAddress": {"address": addr}} for addr in to]
+            recipients_str = ", ".join(to)
+        else:
+            to_recipients = [{"emailAddress": {"address": to}}]
+            recipients_str = to
+
         payload = {
             "message": {
                 "subject": subject,
                 "body": {"contentType": "HTML", "content": body_html},
-                "toRecipients": [{"emailAddress": {"address": to}}],
+                "toRecipients": to_recipients,
             }
         }
         async with httpx.AsyncClient(timeout=30) as client:
@@ -93,10 +111,12 @@ class NotificationService:
             if not resp.is_success:
                 logger.error("Graph sendMail failed: %s %s", resp.status_code, resp.text)
             else:
-                logger.info("Graph email sent to %s: %s", to, subject)
+                logger.info("Graph email sent to %s: %s", recipients_str, subject)
 
-    async def send_email(self, to: str, subject: str, body_html: str) -> None:
+    async def send_email(self, to: str | list[str], subject: str, body_html: str) -> None:
         """Send email via configured backend (SMTP or Microsoft Graph).
+
+        Supports single recipient (str) or multiple recipients (list[str]).
 
         IMPROVEMENT: Enhanced error logging with recipient and error details
         Ensures silent failures are discoverable in logs without blocking the API request.
@@ -109,7 +129,8 @@ class NotificationService:
         except Exception as e:
             # IMPROVEMENT: Log recipient and error message for debugging
             # Exception is caught to prevent blocking API responses; errors are logged for monitoring
-            logger.exception(f"send_email error to {to}: {str(e)} — swallowing to avoid blocking caller")
+            recipients_str = ", ".join(to) if isinstance(to, list) else to
+            logger.exception(f"send_email error to {recipients_str}: {str(e)} — swallowing to avoid blocking caller")
 
     async def notify_submitted(self, submitter_email: str, title: str, reference_id: str) -> None:
         subject = f"[Blink Relay] Request received: {reference_id}"
