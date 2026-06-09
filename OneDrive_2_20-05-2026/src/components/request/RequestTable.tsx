@@ -124,7 +124,7 @@ export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitte
           {!hideSubmitter && <TableHead>Submitted by</TableHead>}
           <TableHead><SortBtn col="created_at" label="Date" /></TableHead>
           <TableHead>Service ticket</TableHead>
-          <TableHead>Dev ticket</TableHead>
+          <TableHead>Jira ticket</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
