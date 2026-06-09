@@ -23,7 +23,7 @@ from app.models.request import (
     Request,
     RequestStatus,
 )
-from app.workers.tasks import task_jsm_add_comment, task_send_clarification_email
+from app.workers.tasks import task_jsm_add_comment, task_jira_add_comment, task_send_clarification_email
 from app.workers.email_tasks import task_send_new_message_email
 
 router = APIRouter(tags=["thread"])
@@ -210,6 +210,10 @@ async def post_message(
     jsm_body = f"**{user.name}** ({user.email}):\n\n{payload.body}"
     task_jsm_add_comment.delay(str(request_id), jsm_body, not is_internal)
 
+    # Sync message to JIRA ticket if it exists
+    if req.jira_ticket_key:
+        task_jira_add_comment.delay(str(request_id), jsm_body)
+
     # Notify mentioned users if any
     if payload.mentions:
         from app.services.mention_service import notify_mentioned_users
@@ -284,10 +288,11 @@ async def send_clarification(
     await db.commit()
 
     task_send_clarification_email.delay(str(request_id), payload.body)
-    task_jsm_add_comment.delay(
-        str(request_id),
-        f"**{user.name}** ({user.email}) requested clarification:\n\n{payload.body}",
-        True,
-    )
+    clarify_body = f"**{user.name}** ({user.email}) requested clarification:\n\n{payload.body}"
+    task_jsm_add_comment.delay(str(request_id), clarify_body, True)
+
+    # Sync clarification to JIRA ticket if it exists
+    if req.jira_ticket_key:
+        task_jira_add_comment.delay(str(request_id), clarify_body)
 
     return MessageResponse.model_validate(msg)
