@@ -146,6 +146,18 @@ async def post_message(
         message_type=MessageType.COMMENT,
     )
     db.add(msg)
+
+    # Audit log message creation
+    db.add(AuditLog(
+        request_id=request_id,
+        actor_oid=user.oid,
+        actor_email=user.email,
+        action="message_added",
+        previous_value=None,
+        new_value=payload.body[:200],  # Store preview of message
+        event_data={"is_internal": is_internal, "message_type": "comment"},
+    ))
+
     await db.flush()
     await db.refresh(msg)
     await db.commit()
@@ -256,6 +268,7 @@ async def send_clarification(
     prev_status = req.status
     req.status = RequestStatus.AWAITING_INFO
 
+    # Status change message
     db.add(Message(
         request_id=request_id,
         author_oid=user.oid,
@@ -265,6 +278,8 @@ async def send_clarification(
         is_internal=False,
         message_type=MessageType.STATUS_CHANGE,
     ))
+
+    # Clarification message
     msg = Message(
         request_id=request_id,
         author_oid=user.oid,
@@ -275,6 +290,8 @@ async def send_clarification(
         message_type=MessageType.CLARIFICATION_QUESTION,
     )
     db.add(msg)
+
+    # Audit log for status change
     db.add(AuditLog(
         request_id=req.id,
         actor_oid=user.oid,
@@ -282,6 +299,17 @@ async def send_clarification(
         action="clarification_requested",
         previous_value=str(prev_status),
         new_value=str(RequestStatus.AWAITING_INFO),
+    ))
+
+    # Audit log for clarification message
+    db.add(AuditLog(
+        request_id=req.id,
+        actor_oid=user.oid,
+        actor_email=user.email,
+        action="clarification_sent",
+        previous_value=None,
+        new_value=payload.body[:200],
+        event_data={"message_type": "clarification_question"},
     ))
     await db.flush()
     await db.refresh(msg)

@@ -679,9 +679,13 @@ def _format_timeline_message(action: str, previous_value: str, new_value: str) -
         'status_change': f'Status updated - {prev_formatted} to {new_formatted}',
         'info_provided': 'Info provided - request moved to Info Received',
         'request_cancelled': 'Cancelled - request was cancelled',
+        'message_added': f'Message added - {new_formatted[:80]}...' if len(new_formatted) > 80 else f'Message added - {new_formatted}',
+        'clarification_sent': f'Clarification sent - {new_formatted[:80]}...' if len(new_formatted) > 80 else f'Clarification sent - {new_formatted}',
+        'claimed': 'Claimed - request was claimed',
+        'unclaimed': 'Unclaimed - request was unclaimed',
     }
-    
-    return action_messages.get(action, f'{action.replace("_", " ").title()} - {prev_formatted} to {new_formatted}')
+
+    return action_messages.get(action, f'{action.replace("_", " ").title()} - {new_formatted[:100]}')
 
 
 @router.get("/requests/{request_id}/timeline", response_model=list[TimelineEventResponse])
@@ -728,8 +732,8 @@ async def get_request_timeline(
 
     # Add audit log events
     for log in logs:
-        # Only show meaningful status-change-related events
-        if log.action in ["status_change", "approved", "rejected", "info_provided", "request_cancelled"]:
+        # Show all meaningful events including status changes, approvals, and messages
+        if log.action in ["status_change", "approved", "rejected", "info_provided", "request_cancelled", "message_added", "clarification_sent", "claimed", "unclaimed"]:
             details = _format_timeline_message(log.action, log.previous_value or "", log.new_value or "")
             # Get actor name from User table or use email or default to "System"
             actor_name = "System"
