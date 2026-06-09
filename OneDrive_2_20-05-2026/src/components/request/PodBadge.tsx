@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { POD_COLORS } from '@/lib/constants'
+import { POD_COLORS, POD_LABELS } from '@/lib/constants'
 import type { Pod } from '@/lib/types'
 
 interface PodBadgeProps {
@@ -16,7 +16,7 @@ export function PodBadge({ pod, className }: PodBadgeProps) {
         className
       )}
     >
-      {pod}
+      {POD_LABELS[pod]}
     </span>
   )
 }

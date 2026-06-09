@@ -29,7 +29,7 @@ import { cn, ensureRegionArray } from '@/lib/utils'
 import {
   PODS, PRIORITIES, REQUEST_TYPES, REQUEST_STATUSES, STATUS_LABELS,
   STATUS_COLORS, STATUS_ACTIVE_COLORS,
-  POD_COLORS, POD_ACTIVE_COLORS,
+  POD_COLORS, POD_ACTIVE_COLORS, POD_LABELS,
   PRIORITY_COLORS, PRIORITY_ACTIVE_COLORS,
   TYPE_COLORS, TYPE_ACTIVE_COLORS,
   DASHBOARD_REFRESH_INTERVAL_MS as REFRESH_MS,
@@ -142,7 +142,7 @@ export function DashboardPage() {
     setExporting(true)
     try {
       const rows: string[][] = [[
-        'Reference ID', 'Title', 'Type', 'Status', 'Pod', 'Priority', 'Region',
+        'Reference ID', 'Title', 'Type', 'Status', 'Area', 'Priority', 'Region',
         'Submitter Name', 'Submitter Email', 'Affected Area',
         'Jira Ticket', 'JSM Ticket', 'Created At',
       ]]
@@ -152,7 +152,7 @@ export function DashboardPage() {
           r.title,
           r.request_type,
           STATUS_LABELS[r.status],
-          r.pod,
+          POD_LABELS[r.pod],
           r.priority,
           // region is string[] post-migration 007; guard against legacy string values
           ensureRegionArray(r.region).join(', '),
@@ -281,7 +281,7 @@ export function DashboardPage() {
 
             <div className="px-4 py-3">
               <div className="flex items-center justify-between mb-2.5">
-                <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">POD</span>
+                <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Area</span>
                 {pods.length > 0 && (
                   <span className="text-xs text-primary font-medium cursor-pointer hover:underline"
                     onClick={() => setPods([])}>
@@ -303,7 +303,7 @@ export function DashboardPage() {
                       )}
                       aria-pressed={active}
                     >
-                      {p}
+                      {POD_LABELS[p]}
                     </button>
                   )
                 })}

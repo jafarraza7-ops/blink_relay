@@ -118,7 +118,7 @@ export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitte
           <TableHead><SortBtn col="reference_id" label="Reference" /></TableHead>
           <TableHead><SortBtn col="title" label="Title" /></TableHead>
           <TableHead><SortBtn col="request_type" label="Type" /></TableHead>
-          <TableHead><SortBtn col="pod" label="Pod" /></TableHead>
+          <TableHead><SortBtn col="pod" label="Area" /></TableHead>
           <TableHead><SortBtn col="priority" label="Priority" /></TableHead>
           <TableHead><SortBtn col="status" label="Status" /></TableHead>
           {!hideSubmitter && <TableHead>Submitted by</TableHead>}
