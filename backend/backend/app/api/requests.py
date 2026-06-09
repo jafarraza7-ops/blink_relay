@@ -490,11 +490,22 @@ async def export_requests_csv(
     request_type: Optional[RequestType] = Query(None),
     priority: Optional[Priority] = Query(None),
     search: Optional[str] = Query(None, max_length=200),
+    columns: Optional[str] = Query(None, description="Comma-separated column names to include (all if not specified)"),
 ) -> StreamingResponse:
     """Export all matching requests as a CSV file (no pagination limit).
 
     Includes all requests visible to the user in the dashboard — both PMs and PodReviewers
     see the complete dataset they have access to, including their own submitted requests.
+
+    Query Parameters:
+      - pod: Filter by pod
+      - status: Filter by status
+      - request_type: Filter by type
+      - priority: Filter by priority
+      - search: Full-text search (title, reference, business_problem)
+      - columns: Comma-separated column selection (reference_id,title,status,pod,priority,submitter_name,submitter_email,jira_ticket_key,jsm_ticket_key,created_at,updated_at)
+
+    Available columns: reference_id, title, request_type, status, pod, priority, region, submitter_name, submitter_email, affected_area, jira_ticket_key, jsm_ticket_key, created_at, updated_at
     """
     filter_params = {
         "pod": pod,
@@ -510,31 +521,47 @@ async def export_requests_csv(
     )
     items = result.scalars().all()
 
+    # Parse column selection
+    column_map = {
+        "reference_id": ("Reference ID", lambda r: r.reference_id or ""),
+        "title": ("Title", lambda r: r.title),
+        "request_type": ("Type", lambda r: str(r.request_type)),
+        "status": ("Status", lambda r: str(r.status)),
+        "pod": ("Pod", lambda r: str(r.pod)),
+        "priority": ("Priority", lambda r: str(r.priority)),
+        "region": ("Region", lambda r: ", ".join(r.region) if isinstance(r.region, list) else str(r.region)),
+        "submitter_name": ("Submitter Name", lambda r: r.submitter_name),
+        "submitter_email": ("Submitter Email", lambda r: r.submitter_email),
+        "affected_area": ("Affected Area", lambda r: r.affected_area),
+        "jira_ticket_key": ("Jira Ticket", lambda r: r.jira_ticket_key or ""),
+        "jsm_ticket_key": ("JSM Ticket", lambda r: r.jsm_ticket_key or ""),
+        "created_at": ("Created At", lambda r: r.created_at.strftime("%Y-%m-%d %H:%M UTC")),
+        "updated_at": ("Updated At", lambda r: r.updated_at.strftime("%Y-%m-%d %H:%M UTC")),
+    }
+
+    # Default columns if none specified
+    if columns:
+        selected_cols = [col.strip() for col in columns.split(",")]
+        selected_cols = [col for col in selected_cols if col in column_map]
+        if not selected_cols:
+            selected_cols = list(column_map.keys())
+    else:
+        selected_cols = ["reference_id", "title", "request_type", "status", "pod", "priority",
+                        "submitter_name", "submitter_email", "affected_area", "jira_ticket_key",
+                        "jsm_ticket_key", "created_at", "updated_at"]
+
+    # Generate CSV
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
-        "Reference ID", "Title", "Type", "Status", "Pod", "Priority", "Region",
-        "Submitter Name", "Submitter Email", "Affected Area",
-        "Jira Ticket", "JSM Ticket", "Created At", "Updated At",
-    ])
+
+    # Write headers
+    headers = [column_map[col][0] for col in selected_cols]
+    writer.writerow(headers)
+
+    # Write rows
     for r in items:
-        region = ", ".join(r.region) if isinstance(r.region, list) else str(r.region)
-        writer.writerow([
-            r.reference_id or "",
-            r.title,
-            str(r.request_type),
-            str(r.status),
-            str(r.pod),
-            str(r.priority),
-            region,
-            r.submitter_name,
-            r.submitter_email,
-            r.affected_area,
-            r.jira_ticket_key or "",
-            r.jsm_ticket_key or "",
-            r.created_at.strftime("%Y-%m-%d %H:%M UTC"),
-            r.updated_at.strftime("%Y-%m-%d %H:%M UTC"),
-        ])
+        row = [column_map[col][1](r) for col in selected_cols]
+        writer.writerow(row)
 
     output.seek(0)
     filename = f"blink-requests-{datetime.now(tz=timezone.utc).strftime('%Y%m%d')}.csv"
