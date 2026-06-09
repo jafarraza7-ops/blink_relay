@@ -785,7 +785,7 @@ def task_send_escalation_digest(self) -> dict:
     """
     from app.core.database import db_session
     from app.services.escalation_service import get_escalation_summary
-    from app.services.email_group_service import get_pm_emails
+    from app.services.email_group_service import get_pm_group_emails
     from app.services.notification_service import NotificationService
 
     async def _send_digest():
@@ -796,7 +796,7 @@ def task_send_escalation_digest(self) -> dict:
                 logger.info("No escalated requests found — skipping digest")
                 return {"skipped": True, "reason": "no_escalations"}
 
-            pm_emails = await get_pm_emails(db)
+            _, pm_emails = await get_pm_group_emails(db)
             if not pm_emails:
                 logger.warning("No PM emails configured — cannot send escalation digest")
                 return {"error": "no_pm_emails"}
@@ -828,7 +828,7 @@ def task_send_escalation_digest(self) -> dict:
             for pm_email in pm_emails:
                 try:
                     await ns.send_email(
-                        recipient=pm_email,
+                        to=pm_email,
                         subject=f"⚠️ Escalation Alert: {summary['total']} request(s) waiting for response",
                         body_html=body_html,
                     )
