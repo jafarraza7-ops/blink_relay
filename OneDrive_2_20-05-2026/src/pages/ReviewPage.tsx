@@ -163,7 +163,7 @@ export function ReviewPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main content */}
-        <div className="space-y-6 lg:col-span-2 pb-6">
+        <div className="space-y-6 lg:col-span-2">
           {/* Details */}
           <Card>
             <CardHeader><CardTitle className="text-base">Request Details</CardTitle></CardHeader>
