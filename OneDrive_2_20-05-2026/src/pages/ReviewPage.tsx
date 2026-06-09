@@ -155,7 +155,7 @@ export function ReviewPage() {
         <StatusBadge status={req.status} className="shrink-0 text-sm px-3 py-1" />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <TypeBadge type={req.request_type} />
         <PodBadge pod={req.pod} />
         <PriorityBadge priority={req.priority} />
