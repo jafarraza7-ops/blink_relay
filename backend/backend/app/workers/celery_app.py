@@ -42,6 +42,12 @@ celery_app.conf.update(
             "task": "app.workers.tasks.task_send_escalation_digest",
             "schedule": crontab(hour=9, minute=30),
         },
+        # Send weekly summary digest to all stakeholders.
+        # Runs every Monday at 9:00 AM UTC.
+        "send-weekly-digest": {
+            "task": "app.workers.email_tasks.task_send_weekly_digest",
+            "schedule": crontab(day_of_week=1, hour=9, minute=0),  # Monday 9 AM UTC
+        },
     },
     # Eager mode: tasks run inline (no broker needed). Used for local smoke testing.
     task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,

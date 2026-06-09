@@ -279,3 +279,86 @@ def task_send_unclaim_notification(self, request_id: str, pm_name: str):
         _run(_send())
     except Exception as exc:
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task(bind=True, max_retries=2)
+def task_send_weekly_digest(self):
+    """Send weekly summary digest to all stakeholders.
+
+    Compiles statistics, trending issues, and overdue requests.
+    Sent every Monday at 9:00 AM UTC.
+    """
+    async def _send():
+        from app.core.database import db_session
+        from app.models.request import User
+        from app.core.security import Role
+        from app.services.digest_service import get_weekly_digest_data
+        from app.core.config import get_settings
+        from jinja2 import Template
+
+        settings = get_settings()
+
+        async with db_session() as db:
+            # Get digest data
+            data = await get_weekly_digest_data(db)
+
+            # Get all stakeholders (PMs, admins)
+            from sqlalchemy import select
+            result = await db.execute(
+                select(User).where(
+                    User.roles.contains("ProductManager") | User.roles.contains("Admin")
+                )
+            )
+            stakeholders = result.scalars().all()
+
+            if not stakeholders:
+                return {"sent": 0, "error": "No stakeholders found"}
+
+            # Load template
+            try:
+                with open("app/services/email_templates/weekly_digest.html", "r") as f:
+                    template_str = f.read()
+            except FileNotFoundError:
+                return {"sent": 0, "error": "Template not found"}
+
+            template = Template(template_str)
+
+            # Render template with data
+            html_content = template.render(
+                total=data["total"],
+                this_week=data["this_week"],
+                approved_week=data["approved_week"],
+                completed_count=len(data["completed"]),
+                overdue=data["overdue"],
+                by_status=data["by_status"],
+                by_pod=data["by_pod"],
+                trending=data["trending"],
+                completed=data["completed"],
+                period_start=data["period"]["start"],
+                period_end=data["period"]["end"],
+                dashboard_url=f"{settings.FRONTEND_URL}/dashboard",
+            )
+
+            # Send to each stakeholder
+            notifier = NotificationService()
+            sent = 0
+            for stakeholder in stakeholders:
+                try:
+                    await notifier.send_email(
+                        to=stakeholder.email,
+                        subject="[Blink Relay] Weekly Summary",
+                        body_html=html_content,
+                    )
+                    sent += 1
+                except Exception as e:
+                    import logging
+                    logging.error(f"Failed to send digest to {stakeholder.email}: {e}")
+
+            return {"sent": sent, "total_stakeholders": len(stakeholders)}
+
+    try:
+        return _run(_send())
+    except Exception as exc:
+        import logging
+        logging.error(f"Weekly digest failed: {exc}")
+        return {"error": str(exc)}
