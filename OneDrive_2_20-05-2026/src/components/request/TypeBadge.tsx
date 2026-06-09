@@ -13,7 +13,7 @@ export function TypeBadge({ type, className }: TypeBadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+        'inline-flex items-center gap-1 text-xs',
         TYPE_COLORS[type],
         className
       )}

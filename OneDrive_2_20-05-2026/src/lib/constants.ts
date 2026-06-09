@@ -77,25 +77,25 @@ export const STATUS_COLORS: Record<RequestStatus, string> = {
 }
 
 export const POD_COLORS: Record<Pod, string> = {
-  Charger: 'bg-orange-100 text-orange-700 border-orange-200',
-  Driver: 'bg-sky-100 text-sky-700 border-sky-200',
-  Revenue: 'bg-green-100 text-green-700 border-green-200',
-  Data: 'bg-purple-100 text-purple-700 border-purple-200',
-  DevOps: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-  Denali: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  Charger: 'bg-gray-100 text-gray-700 border-gray-200',
+  Driver: 'bg-gray-100 text-gray-700 border-gray-200',
+  Revenue: 'bg-gray-100 text-gray-700 border-gray-200',
+  Data: 'bg-gray-100 text-gray-700 border-gray-200',
+  DevOps: 'bg-gray-100 text-gray-700 border-gray-200',
+  Denali: 'bg-gray-100 text-gray-700 border-gray-200',
   Unknown: 'bg-gray-100 text-gray-500 border-gray-200',
 }
 
 export const PRIORITY_COLORS: Record<Priority, string> = {
-  Critical: 'bg-red-100 text-red-700 border-red-200',
-  High: 'bg-orange-100 text-orange-700 border-orange-200',
-  Medium: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  Low: 'bg-slate-100 text-slate-600 border-slate-200',
+  Critical: 'text-red-700 font-medium',
+  High: 'text-orange-600 font-medium',
+  Medium: 'text-gray-600',
+  Low: 'text-gray-500',
 }
 
 export const TYPE_COLORS: Record<RequestType, string> = {
-  Feature: 'bg-blue-100 text-blue-700 border-blue-200',
-  Defect: 'bg-rose-100 text-rose-700 border-rose-200',
+  Feature: 'text-blue-600 font-medium',
+  Defect: 'text-red-600 font-medium',
 }
 
 // ── Badge / pill color maps (active/selected) ─────────────────────────────────
@@ -115,25 +115,25 @@ export const STATUS_ACTIVE_COLORS: Record<RequestStatus, string> = {
 }
 
 export const POD_ACTIVE_COLORS: Record<Pod, string> = {
-  Charger: 'bg-orange-300 text-orange-900 border-orange-500',
-  Driver:  'bg-sky-300 text-sky-900 border-sky-500',
-  Revenue: 'bg-green-300 text-green-900 border-green-500',
-  Data:    'bg-purple-300 text-purple-900 border-purple-500',
-  DevOps:  'bg-zinc-300 text-zinc-900 border-zinc-500',
-  Denali:  'bg-indigo-300 text-indigo-900 border-indigo-500',
-  Unknown: 'bg-gray-300 text-gray-800 border-gray-500',
+  Charger: 'bg-gray-200 text-gray-900 border-gray-400',
+  Driver:  'bg-gray-200 text-gray-900 border-gray-400',
+  Revenue: 'bg-gray-200 text-gray-900 border-gray-400',
+  Data:    'bg-gray-200 text-gray-900 border-gray-400',
+  DevOps:  'bg-gray-200 text-gray-900 border-gray-400',
+  Denali:  'bg-gray-200 text-gray-900 border-gray-400',
+  Unknown: 'bg-gray-200 text-gray-800 border-gray-400',
 }
 
 export const PRIORITY_ACTIVE_COLORS: Record<Priority, string> = {
-  Critical: 'bg-red-300 text-red-900 border-red-500',
-  High:     'bg-orange-300 text-orange-900 border-orange-500',
-  Medium:   'bg-yellow-300 text-yellow-900 border-yellow-500',
-  Low:      'bg-slate-300 text-slate-800 border-slate-500',
+  Critical: 'bg-gray-200 text-red-900 border-gray-400 font-bold',
+  High:     'bg-gray-200 text-orange-800 border-gray-400 font-bold',
+  Medium:   'bg-gray-200 text-gray-700 border-gray-400',
+  Low:      'bg-gray-200 text-gray-600 border-gray-400',
 }
 
 export const TYPE_ACTIVE_COLORS: Record<RequestType, string> = {
-  Feature: 'bg-blue-300 text-blue-900 border-blue-500',
-  Defect:  'bg-rose-300 text-rose-900 border-rose-500',
+  Feature: 'bg-gray-200 text-blue-900 border-gray-400 font-bold',
+  Defect:  'bg-gray-200 text-red-900 border-gray-400 font-bold',
 }
 
 // ── Workflow transition rules ─────────────────────────────────────────────────
