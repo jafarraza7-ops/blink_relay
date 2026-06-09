@@ -111,29 +111,35 @@ def task_send_pending_request_reminder() -> dict[str, int]:
             errors = 0
 
             # Send reminder to each PM for each pending request
+            from app.services.notification_service import NotificationService
+            from app.services.email_service import get_pending_reminder_template
+
             for req in pending_requests:
                 for pm in pms:
                     try:
-                        # Queue the email task for async delivery
-                        # Pass ISO format datetime string so it displays cleanly in email
-                        task_send_pending_reminder_email.delay(
-                            email=pm.email,
-                            reference_id=req.reference_id or str(req.id),
-                            title=req.title,
-                            submitter_name=req.submitter_name,
-                            created_at=req.created_at.isoformat(),
+                        # Send email directly (eager mode in local dev; queued in production)
+                        html_content = get_pending_reminder_template(
+                            req.reference_id or str(req.id),
+                            req.title,
+                            req.submitter_name,
+                            req.created_at.isoformat()
+                        )
+                        await NotificationService().send_email(
+                            to=pm.email,
+                            subject=f"[Blink Relay] Action Required: Pending Request {req.reference_id or str(req.id)}",
+                            body_html=html_content,
                         )
                         reminders_sent += 1
 
                         logger.debug(
-                            "Queued reminder email for PM %s about request %s",
+                            "Sent reminder email for PM %s about request %s",
                             pm.email,
                             req.reference_id or str(req.id),
                         )
                     except Exception as e:
                         errors += 1
                         logger.error(
-                            "Failed to queue reminder email for PM %s, request %s: %s",
+                            "Failed to send reminder email for PM %s, request %s: %s",
                             pm.email,
                             req.reference_id or str(req.id),
                             str(e),
