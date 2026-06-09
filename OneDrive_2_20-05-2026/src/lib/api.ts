@@ -59,6 +59,7 @@ const API_ROUTES = {
   REQUEST_CLARIFY: (id: string) => `/requests/${id}/clarify`,
   REQUEST_FILES: (id: string) => `/requests/${id}/files`,
   REQUEST_FILE_DELETE: (id: string, fileId: string) => `/requests/${id}/files/${fileId}`,
+  ESCALATIONS_SUMMARY: '/requests/escalations/summary',
   USERS: '/users',
   RESPOND: (id: string) => `/requests/${id}/respond`,
 } as const
@@ -180,6 +181,9 @@ export const requestsApi = {
 
   getTimeline: (id: string): Promise<TimelineEvent[]> =>
     apiClient.get<TimelineEvent[]>(API_ROUTES.REQUEST_TIMELINE(id)).then((r) => r.data),
+
+  getEscalationSummary: (): Promise<{ total: number; by_pod: Record<string, number>; by_priority: Record<string, number>; oldest_days: number | null }> =>
+    apiClient.get(API_ROUTES.ESCALATIONS_SUMMARY).then((r) => r.data),
 
   update: (id: string, payload: RequestUpdate): Promise<BlinkRequest> =>
     apiClient.patch<BlinkRequest>(API_ROUTES.REQUEST_DETAIL(id), payload).then((r) => r.data),

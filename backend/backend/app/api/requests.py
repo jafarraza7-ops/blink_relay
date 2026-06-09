@@ -545,6 +545,23 @@ async def export_requests_csv(
     )
 
 
+@router.get("/requests/escalations/summary")
+async def get_escalation_summary(
+    user: Annotated[UserClaims, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Get escalation metrics for requests in AwaitingInfo >7 days.
+
+    PM/Reviewer only. Returns counts by pod and priority.
+    """
+    from app.services.escalation_service import get_escalation_summary
+    if not (user.is_pm or user.is_reviewer):
+        raise HTTPException(status_code=403, detail="PMs and reviewers only")
+
+    summary = await get_escalation_summary(db, days_threshold=7)
+    return summary
+
+
 @router.get("/requests/mine", response_model=RequestListResponse)
 async def list_my_requests(
     user: Annotated[UserClaims, Depends(get_current_user)],

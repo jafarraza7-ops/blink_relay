@@ -203,3 +203,13 @@ export function useSendClarification(requestId: string) {
     },
   })
 }
+
+/** Get escalation metrics: requests in AwaitingInfo >7 days. */
+export function useEscalationSummary() {
+  return useQuery({
+    queryKey: ['escalations', 'summary'] as const,
+    queryFn: () => requestsApi.getEscalationSummary(),
+    refetchInterval: 60 * 1000, // Refresh every minute
+    staleTime: 30 * 1000, // Data fresh for 30 seconds
+  })
+}

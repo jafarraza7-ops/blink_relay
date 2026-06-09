@@ -767,3 +767,84 @@ def task_notify_pm_clarification_response(self, request_id: str) -> None:
             )
 
     _run(_notify())
+
+
+# ── Escalation alerts ──────────────────────────────────────────────────────────
+
+@celery_app.task(
+    bind=True,
+    name="app.workers.tasks.task_send_escalation_digest",
+    max_retries=2,
+    default_retry_delay=60,
+    autoretry_for=(Exception,),
+)
+def task_send_escalation_digest(self) -> dict:
+    """Send daily digest of escalated requests (AwaitingInfo >7 days) to all PMs.
+
+    Scheduled to run daily at 9 AM.
+    """
+    from app.core.database import db_session
+    from app.services.escalation_service import get_escalation_summary
+    from app.services.email_group_service import get_pm_emails
+    from app.services.notification_service import NotificationService
+
+    async def _send_digest():
+        async with db_session() as db:
+            summary = await get_escalation_summary(db, days_threshold=7)
+
+            if summary["total"] == 0:
+                logger.info("No escalated requests found — skipping digest")
+                return {"skipped": True, "reason": "no_escalations"}
+
+            pm_emails = await get_pm_emails(db)
+            if not pm_emails:
+                logger.warning("No PM emails configured — cannot send escalation digest")
+                return {"error": "no_pm_emails"}
+
+            from app.core.config import get_settings as _gs
+            from jinja2 import Template
+            from pathlib import Path
+
+            _s = _gs()
+
+            # Load template
+            template_path = Path(__file__).parent.parent / "services" / "email_templates" / "escalation_digest.html"
+            with open(template_path) as f:
+                template_html = f.read()
+
+            template = Template(template_html)
+            body_html = template.render(
+                count=summary["total"],
+                oldest_days=summary["oldest_days"],
+                by_priority=summary["by_priority"],
+                by_pod=summary["by_pod"],
+                requests=summary["requests"],
+                base_url=_s.FRONTEND_URL,
+                now=__import__('datetime').datetime.utcnow(),
+            )
+
+            # Send to all PMs
+            ns = NotificationService()
+            for pm_email in pm_emails:
+                try:
+                    await ns.send_email(
+                        recipient=pm_email,
+                        subject=f"⚠️ Escalation Alert: {summary['total']} request(s) waiting for response",
+                        body_html=body_html,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send escalation digest to {pm_email}: {e}")
+
+            logger.info(
+                f"Sent escalation digest to {len(pm_emails)} PM(s): "
+                f"{summary['total']} escalated request(s), "
+                f"oldest waiting {summary['oldest_days']} days"
+            )
+
+            return {
+                "sent_to": len(pm_emails),
+                "escalations": summary["total"],
+                "oldest_days": summary["oldest_days"],
+            }
+
+    return _run(_send_digest())

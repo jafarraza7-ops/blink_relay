@@ -36,6 +36,12 @@ celery_app.conf.update(
             "task": "app.workers.reminder_tasks.task_send_pending_request_reminder",
             "schedule": crontab(hour=9, minute=0),
         },
+        # Send escalation digest: requests in AwaitingInfo status for >7 days.
+        # Runs every day at 9:30 AM UTC to follow the reminder digest.
+        "send-escalation-digest-daily": {
+            "task": "app.workers.tasks.task_send_escalation_digest",
+            "schedule": crontab(hour=9, minute=30),
+        },
     },
     # Eager mode: tasks run inline (no broker needed). Used for local smoke testing.
     task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,

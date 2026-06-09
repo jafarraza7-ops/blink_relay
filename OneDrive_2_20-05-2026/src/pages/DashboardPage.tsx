@@ -18,12 +18,12 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Activity, CheckCircle2, Clock, Download, FileText, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Activity, CheckCircle2, Clock, Download, FileText, Search, SlidersHorizontal, X, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { RequestTable } from '@/components/request/RequestTable'
-import { useRequests } from '@/hooks/useRequests'
+import { useRequests, useEscalationSummary } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { cn, ensureRegionArray } from '@/lib/utils'
 import {
@@ -106,7 +106,11 @@ export function DashboardPage() {
   const { data: awaitData }    = useRequests({ status: 'AwaitingInfo', page_size: 1 }, { refetchInterval: REFRESH_MS })
   const { data: approvedData } = useRequests({ status: 'Approved', page_size: 1 }, { refetchInterval: REFRESH_MS })
 
+  // Escalation metrics: requests in AwaitingInfo >7 days
+  const { data: escalationData } = useEscalationSummary()
+
   const allItems = data?.items ?? []
+  const hasEscalations = escalationData?.total ? escalationData.total > 0 : false
 
   // ── Client-side filtering ───────────────────────────────────────────────────
   // Applied on top of the server-fetched page. Multi-select arrays are ANDed:
@@ -217,6 +221,39 @@ export function DashboardPage() {
         <StatCard icon={Clock}        label="Awaiting Info"   value={awaitData?.total}    color="bg-orange-500" />
         <StatCard icon={CheckCircle2} label="Approved"        value={approvedData?.total} color="bg-green-600"  />
       </div>
+
+      {/* Escalation Alert */}
+      {hasEscalations && escalationData && (
+        <Card className="border-red-300 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-900">⚠️ Escalation Alert</h3>
+                <p className="text-sm text-red-800 mt-1">
+                  <strong>{escalationData.total}</strong> request{escalationData.total !== 1 ? 's' : ''} waiting for requestor response for &gt;7 days
+                  {escalationData.oldest_days && (
+                    <>. Oldest has been waiting <strong>{escalationData.oldest_days} days</strong></>
+                  )}
+                </p>
+                {Object.keys(escalationData.by_priority || {}).length > 0 && (
+                  <div className="mt-2 text-xs text-red-700">
+                    <span className="font-medium">By Priority:</span> {Object.entries(escalationData.by_priority).map(([p, c]) => `${p}: ${c}`).join(' • ')}
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 border-red-300 hover:bg-red-100 text-red-900"
+                  onClick={() => setStatuses(['AwaitingInfo'])}
+                >
+                  View Escalated Requests
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filter bar */}
       <div className="space-y-3">
