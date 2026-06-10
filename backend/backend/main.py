@@ -14,7 +14,7 @@ import logging
 from contextlib import asynccontextmanager
 
 import redis.asyncio as aioredis
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -22,6 +22,13 @@ from app.api import auth, email_auth, files, health, requests, thread, users, we
 from app.core.config import get_settings
 from app.core.database import engine
 from app.core.insights import setup_insights
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.auth_error import AuthErrorMiddleware
+from app.middleware.csrf import CSRFMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from starlette.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -88,6 +95,9 @@ async def lifespan(app: FastAPI):
     logger.info("Blink Relay API shutdown complete")
 
 
+# ── Rate Limiter ─────────────────────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="Blink Relay API",
     description="Internal tech request intake and management system for Blink Network",
@@ -97,7 +107,30 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
+# Add rate limiter to app
+app.state.limiter = limiter
+
+
+# ── Rate Limit Exception Handler ──────────────────────────────────────────────
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please try again later."}
+    )
+
+# ── Security Middleware (applied in reverse order) ────────────────────────────
+
+# 1. CSRF Protection (applied last, executed first)
+app.add_middleware(CSRFMiddleware, secret_key=settings.AZURE_CLIENT_SECRET or "dev-secret")
+
+# 2. Auth Error Handler (convert 404 to 401)
+app.add_middleware(AuthErrorMiddleware)
+
+# 3. Security Headers (applied second-to-last, executed second)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 4. CORS (applied first, executed last)
 allowed_origins = [settings.FRONTEND_URL, "http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,

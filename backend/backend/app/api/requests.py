@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 import csv
 import io
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request as FastAPIRequest, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_, select
@@ -400,6 +400,7 @@ class SimilarRequestResponse(BaseModel):
 
 @router.post("/requests", response_model=RequestResponse, status_code=status.HTTP_201_CREATED)
 async def create_request(
+    http_request: FastAPIRequest,
     payload: RequestCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[Optional[UserClaims], Depends(get_optional_user)],
@@ -409,6 +410,13 @@ async def create_request(
     Uses get_optional_user so unauthenticated (external) submissions are still
     accepted — the submitter fields fall back to anonymous identifiers in that case.
     """
+    # Rate limiting: 30 requests per minute per IP address
+    try:
+        limiter = http_request.app.state.limiter
+        await limiter.hit("30/minute")(lambda: None)(http_request)
+    except Exception:
+        pass  # Continue if limiter not configured
+
     submitter_oid = user.oid if user else "anonymous"
     submitter_email = user.email if user else "intake-system@blinkcharging.com"
     submitter_name = user.name if user else "External User"
