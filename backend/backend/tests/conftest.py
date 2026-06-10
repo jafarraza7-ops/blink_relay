@@ -31,7 +31,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from app.core.security import UserClaims, Role
 from app.models.request import (  # noqa: F401 – ensure all models are registered
     ALLOWED_TRANSITIONS, Attachment, AuditLog, Message, Pod, Request,
-    RequestStatus, RequestType, Severity, User,
+    RequestStatus, RequestType, User,
 )
 
 # ── SQLite in-memory test database ────────────────────────────────────────────
