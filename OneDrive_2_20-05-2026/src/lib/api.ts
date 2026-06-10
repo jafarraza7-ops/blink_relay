@@ -85,6 +85,9 @@ const apiClient: AxiosInstance = axios.create({
   timeout: 30_000,
 })
 
+// Store CSRF token from response headers
+let _csrfToken: string | null = null
+
 // Attach the Bearer token to every request via the injected getter.
 // acquireTokenSilent will refresh the MSAL token automatically; if it can't,
 // it falls back to a redirect so the user re-authenticates.
@@ -95,11 +98,24 @@ apiClient.interceptors.request.use(async (config) => {
       config.headers.Authorization = `Bearer ${token}`
     }
   }
+
+  // Attach CSRF token for state-changing requests
+  if (_csrfToken && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(config.method?.toUpperCase() || '')) {
+    config.headers['X-CSRF-Token'] = _csrfToken
+  }
+
   return config
 })
 
 apiClient.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Capture CSRF token from response header
+    const csrfToken = res.headers['x-csrf-token']
+    if (csrfToken) {
+      _csrfToken = csrfToken
+    }
+    return res
+  },
   (error) => {
     // Normalize FastAPI's `detail` field and generic messages into a single
     // Error so callers only need to handle one shape.
