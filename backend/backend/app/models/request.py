@@ -129,6 +129,7 @@ ALLOWED_TRANSITIONS: dict[RequestStatus, set[RequestStatus]] = {
     RequestStatus.IN_REVIEW:     {RequestStatus.AWAITING_INFO, RequestStatus.APPROVED, RequestStatus.REJECTED, RequestStatus.IN_PROGRESS, RequestStatus.CANCELLED},
     RequestStatus.AWAITING_INFO: {RequestStatus.INFO_RECEIVED, RequestStatus.CANCELLED},
     RequestStatus.INFO_RECEIVED: {RequestStatus.IN_REVIEW, RequestStatus.APPROVED, RequestStatus.CANCELLED},
+    RequestStatus.APPROVED:      {RequestStatus.IN_PROGRESS},
     RequestStatus.REJECTED:      set(),
     RequestStatus.IN_PROGRESS:   {RequestStatus.COMPLETED},
     RequestStatus.COMPLETED:     {RequestStatus.CLOSED},
