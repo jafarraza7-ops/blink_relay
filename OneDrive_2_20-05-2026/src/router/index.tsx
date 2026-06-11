@@ -6,6 +6,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { SubmitPage } from '@/pages/SubmitPage'
 import { ConfirmPage } from '@/pages/ConfirmPage'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { PMSummaryPage } from '@/pages/PMSummaryPage'
 import { MyRequestsPage } from '@/pages/MyRequestsPage'
 import { ReviewPage } from '@/pages/ReviewPage'
 import { EmailLoginPage } from "@/pages/EmailLoginPage"
@@ -78,6 +79,14 @@ export function AppRouter() {
           element={
             <RequireReviewer>
               <DashboardPage />
+            </RequireReviewer>
+          }
+        />
+        <Route
+          path="pm-summary"
+          element={
+            <RequireReviewer>
+              <PMSummaryPage />
             </RequireReviewer>
           }
         />

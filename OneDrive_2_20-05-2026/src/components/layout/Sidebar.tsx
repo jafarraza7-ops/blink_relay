@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Inbox, LayoutDashboard, PlusCircle, Zap } from 'lucide-react'
+import { BarChart3, Inbox, LayoutDashboard, PlusCircle, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -7,6 +7,7 @@ const navItems = [
   { to: '/submit', label: 'New Request', icon: PlusCircle, exact: true },
   { to: '/my-requests', label: 'My Requests', icon: Inbox },
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, reviewerOnly: true },
+  { to: '/pm-summary', label: 'Summary', icon: BarChart3, reviewerOnly: true },
 ]
 
 export function Sidebar() {
