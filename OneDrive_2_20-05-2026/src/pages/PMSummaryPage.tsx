@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
-import axios from 'axios'
+import apiClient from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
 
 interface SummaryData {
@@ -52,32 +52,40 @@ interface TrendData {
 }
 
 const fetchSummary = async () => {
-  const res = await axios.get('/api/analytics/summary')
+  const res = await apiClient.get('/analytics/summary')
   return res.data as SummaryData
 }
 
 const fetchFunnel = async () => {
-  const res = await axios.get('/api/analytics/flow')
+  const res = await apiClient.get('/analytics/flow')
   return res.data as FunnelData
 }
 
 const fetchPodPerformance = async () => {
-  const res = await axios.get('/api/analytics/pod-performance')
+  const res = await apiClient.get('/analytics/pod-performance')
   return res.data as PodPerformance
 }
 
 const fetchEscalations = async () => {
-  const res = await axios.get('/api/analytics/escalations')
+  const res = await apiClient.get('/analytics/escalations')
   return res.data as EscalationData
 }
 
 const fetchTrend = async () => {
-  const res = await axios.get('/api/analytics/trend')
+  const res = await apiClient.get('/analytics/trend')
   return res.data as TrendData
 }
 
 export function PMSummaryPage() {
-  const { isPM, isReviewer, isLoading: authLoading } = useAuth()
+  const { isPM, isReviewer, isLoading: authLoading, user } = useAuth()
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
   if (!isPM && !isReviewer) {
     return (
@@ -90,7 +98,7 @@ export function PMSummaryPage() {
     )
   }
 
-  const authReady = !authLoading && (isPM || isReviewer)
+  const authReady = !!user && (isPM || isReviewer)
 
   const { data: summary } = useQuery({ queryKey: ['analytics', 'summary'], queryFn: fetchSummary, refetchInterval: 30000, enabled: authReady })
   const { data: funnel } = useQuery({ queryKey: ['analytics', 'funnel'], queryFn: fetchFunnel, refetchInterval: 30000, enabled: authReady })
@@ -115,6 +123,48 @@ export function PMSummaryPage() {
     }))
   }, [trend])
 
+  const handleExport = () => {
+    const timestamp = new Date().toISOString().split('T')[0]
+    const csv = [
+      ['PM Summary Dashboard Export', timestamp],
+      [],
+      ['OVERALL METRICS'],
+      ['Total Requests', summary?.total || 0],
+      ['Approved & Ready', summary?.by_status.approved || 0],
+      ['Avg Cycle Time (days)', summary?.cycle_time_avg_days || 0],
+      ['Requests This Week', summary?.requests_this_week || 0],
+      [],
+      ['REQUEST STATUS BREAKDOWN'],
+      ...Object.entries(summary?.by_status || {}).map(([status, count]) => [status, count]),
+      [],
+      ['REQUEST FLOW FUNNEL'],
+      ['Status', 'Count', 'Conversion %'],
+      ...Object.entries(funnel || {}).map(([status, data]) => [status, data.count, data.conversion_percent]),
+      [],
+      ['POD PERFORMANCE'],
+      ['Pod', 'Total', 'Completed', 'Completion %', 'In Progress', 'Cycle Time (days)', 'Velocity/Week'],
+      ...Object.entries(podPerf || {}).map(([pod, perf]) => [
+        pod,
+        perf.total,
+        perf.completed,
+        perf.completion_percent,
+        perf.in_progress,
+        perf.cycle_time_days,
+        perf.velocity_per_week,
+      ]),
+    ]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pm-dashboard-${timestamp}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -123,8 +173,8 @@ export function PMSummaryPage() {
           <h1 className="text-2xl font-bold">PM Summary Dashboard</h1>
           <p className="text-sm text-muted-foreground">Request health overview · updates every 30s</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
-          📊 Export
+        <Button onClick={handleExport} variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+          📊 Export CSV
         </Button>
       </div>
 

@@ -94,6 +94,7 @@ async def get_flow(
         RequestStatus.APPROVED,
         RequestStatus.IN_PROGRESS,
         RequestStatus.COMPLETED,
+        RequestStatus.REJECTED,
     ]
 
     funnel = {}
