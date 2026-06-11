@@ -77,7 +77,7 @@ const fetchTrend = async () => {
 }
 
 export function PMSummaryPage() {
-  const { isPM, isReviewer } = useAuth()
+  const { isPM, isReviewer, isLoading: authLoading } = useAuth()
 
   if (!isPM && !isReviewer) {
     return (
@@ -90,11 +90,13 @@ export function PMSummaryPage() {
     )
   }
 
-  const { data: summary } = useQuery({ queryKey: ['analytics', 'summary'], queryFn: fetchSummary, refetchInterval: 30000 })
-  const { data: funnel } = useQuery({ queryKey: ['analytics', 'funnel'], queryFn: fetchFunnel, refetchInterval: 30000 })
-  const { data: podPerf } = useQuery({ queryKey: ['analytics', 'pod-performance'], queryFn: fetchPodPerformance, refetchInterval: 30000 })
-  const { data: escalations } = useQuery({ queryKey: ['analytics', 'escalations'], queryFn: fetchEscalations, refetchInterval: 30000 })
-  const { data: trend } = useQuery({ queryKey: ['analytics', 'trend'], queryFn: fetchTrend, refetchInterval: 30000 })
+  const authReady = !authLoading && (isPM || isReviewer)
+
+  const { data: summary } = useQuery({ queryKey: ['analytics', 'summary'], queryFn: fetchSummary, refetchInterval: 30000, enabled: authReady })
+  const { data: funnel } = useQuery({ queryKey: ['analytics', 'funnel'], queryFn: fetchFunnel, refetchInterval: 30000, enabled: authReady })
+  const { data: podPerf } = useQuery({ queryKey: ['analytics', 'pod-performance'], queryFn: fetchPodPerformance, refetchInterval: 30000, enabled: authReady })
+  const { data: escalations } = useQuery({ queryKey: ['analytics', 'escalations'], queryFn: fetchEscalations, refetchInterval: 30000, enabled: authReady })
+  const { data: trend } = useQuery({ queryKey: ['analytics', 'trend'], queryFn: fetchTrend, refetchInterval: 30000, enabled: authReady })
 
   const funnelChartData = useMemo(() => {
     if (!funnel) return []
@@ -270,7 +272,7 @@ export function PMSummaryPage() {
                 <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
                 <div>
                   <CardTitle className="text-red-900">Escalations</CardTitle>
-                  <p className="text-sm text-red-700">{escalations.total} requests stuck >{escalations.threshold_days} days</p>
+                  <p className="text-sm text-red-700">{escalations.total} requests stuck &gt;{escalations.threshold_days} days</p>
                 </div>
               </div>
             </div>
