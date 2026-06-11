@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.request import Pod, Request, RequestStatus, RequestType, Severity
+from app.models.request import Pod, Request, RequestStatus, RequestType
 
 
 def _sign(body: bytes, secret: str) -> str:

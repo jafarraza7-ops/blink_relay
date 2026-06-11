@@ -5,8 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.request import (
-    Pod, Request, RequestStatus, RequestType, Severity,
-)
+    Pod, Request, RequestStatus, RequestType, )
 
 
 async def _make_request(db: AsyncSession) -> Request:

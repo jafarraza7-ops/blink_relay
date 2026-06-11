@@ -23,8 +23,7 @@ from app.models.request import (
     Request,
     RequestStatus,
     RequestType,
-    Severity,
-)
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

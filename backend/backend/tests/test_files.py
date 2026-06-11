@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.models.request import Attachment, Pod, Request, RequestStatus, RequestType, Severity
+from app.models.request import Attachment, Pod, Request, RequestStatus, RequestType
 
 
 async def _make_request(db: AsyncSession) -> Request:

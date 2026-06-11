@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth import LoginToken
 from app.models.request import User
-from app.services.token_service import TokenService
+from app.services.token_service import generate_token, hash_token, create_login_token, validate_token
 
 
 class TestTokenGeneration:
@@ -88,7 +88,7 @@ class TestTokenValidation:
         token_obj = await service.create_login_token(db_session, email)
         await db_session.flush()
 
-        validated = await service.validate_login_token(db_session, token_obj.token)
+        validated = await service.validate_token(db_session, token_obj.token)
         assert validated is not None
         assert validated.token == token_obj.token
         assert validated.email == email
@@ -97,7 +97,7 @@ class TestTokenValidation:
     async def test_validate_nonexistent_token(self, db_session: AsyncSession):
         """Test validating a token that doesn't exist."""
         service = TokenService()
-        validated = await service.validate_login_token(db_session, "nonexistent_token")
+        validated = await service.validate_token(db_session, "nonexistent_token")
         assert validated is None
 
     @pytest.mark.asyncio
@@ -111,7 +111,7 @@ class TestTokenValidation:
         token_obj.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
         await db_session.flush()
 
-        validated = await service.validate_login_token(db_session, token_obj.token)
+        validated = await service.validate_token(db_session, token_obj.token)
         assert validated is None
 
     @pytest.mark.asyncio
@@ -128,7 +128,7 @@ class TestTokenValidation:
         await db_session.flush()
 
         # Try to validate again
-        validated = await service.validate_login_token(db_session, token_obj.token)
+        validated = await service.validate_token(db_session, token_obj.token)
         assert validated is None
 
 

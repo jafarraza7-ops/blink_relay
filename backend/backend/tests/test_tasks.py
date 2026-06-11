@@ -6,8 +6,7 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.models.request import (
-    Pod, Request, RequestStatus, RequestType, Severity,
-)
+    Pod, Request, RequestStatus, RequestType, )
 
 
 def _make_mock_request(status=RequestStatus.APPROVED, pod=Pod.DRIVER):
