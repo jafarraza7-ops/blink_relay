@@ -129,7 +129,11 @@ export function PMSummaryPage() {
   const drillInto = (filterType: string, filterValue: string) => {
     const params = new URLSearchParams()
     if (filterType === 'status') params.append('status', filterValue)
-    if (filterType === 'pod') params.append('pod', filterValue)
+    if (filterType === 'pod') {
+      params.append('pod', filterValue)
+      // When drilling into pod performance, also filter to InProgress status
+      params.append('status', 'InProgress')
+    }
     navigate(`/dashboard?${params.toString()}`)
   }
 
