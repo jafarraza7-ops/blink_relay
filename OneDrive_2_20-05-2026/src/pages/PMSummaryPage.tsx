@@ -5,6 +5,7 @@ import { AlertTriangle, TrendingUp, Users, Clock, CheckCircle2 } from 'lucide-re
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useAuth } from '@/hooks/useAuth'
 import apiClient from '@/lib/api'
 import { useQuery } from '@tanstack/react-query'
@@ -189,56 +190,76 @@ export function PMSummaryPage() {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Requests</p>
-                <p className="text-3xl font-bold">{summary?.total ?? '—'}</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Requests</p>
+                    <p className="text-3xl font-bold">{summary?.total ?? '—'}</p>
+                  </div>
+                  <Users className="h-8 w-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>View all requests in dashboard</TooltipContent>
+        </UITooltip>
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => drillInto('status', 'Approved')}>
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Approved & Ready</p>
-                <p className="text-3xl font-bold">{summary?.by_status.approved ?? '—'}</p>
-                <p className="text-xs text-green-600 mt-1">Ready for development</p>
-              </div>
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => drillInto('status', 'Approved')}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Approved & Ready</p>
+                    <p className="text-3xl font-bold">{summary?.by_status.approved ?? '—'}</p>
+                    <p className="text-xs text-green-600 mt-1">Ready for development</p>
+                  </div>
+                  <CheckCircle2 className="h-8 w-8 text-green-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>Filter dashboard to approved requests</TooltipContent>
+        </UITooltip>
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Cycle Time</p>
-                <p className="text-3xl font-bold">{summary?.cycle_time_avg_days ?? '—'}</p>
-                <p className="text-xs text-muted-foreground mt-1">days to completion</p>
-              </div>
-              <Clock className="h-8 w-8 text-orange-500" />
-            </div>
-          </CardContent>
-        </Card>
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Avg Cycle Time</p>
+                    <p className="text-3xl font-bold">{summary?.cycle_time_avg_days ?? '—'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">days to completion</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-orange-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>View all requests in dashboard</TooltipContent>
+        </UITooltip>
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">This Week</p>
-                <p className="text-3xl font-bold">{summary?.requests_this_week ?? '—'}</p>
-                <p className="text-xs text-blue-600 mt-1">requests created</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">This Week</p>
+                    <p className="text-3xl font-bold">{summary?.requests_this_week ?? '—'}</p>
+                    <p className="text-xs text-blue-600 mt-1">requests created</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>View all requests in dashboard</TooltipContent>
+        </UITooltip>
       </div>
 
       {/* Funnel & Trend */}
@@ -291,35 +312,39 @@ export function PMSummaryPage() {
           <div className="space-y-4">
             {podPerf && Object.entries(podPerf).map(([pod, perf]) => (
               perf.total > 0 && (
-                <div
-                  key={pod}
-                  className="border-l-4 border-blue-500 pl-4 py-2 cursor-pointer hover:bg-accent/50 transition-colors rounded"
-                  onClick={() => drillInto('pod', pod)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold capitalize">{pod}</p>
-                      <p className="text-sm text-muted-foreground">{perf.total} total requests</p>
+                <UITooltip key={pod}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="border-l-4 border-blue-500 pl-4 py-2 cursor-pointer hover:bg-accent/50 transition-colors rounded"
+                      onClick={() => drillInto('pod', pod)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-semibold capitalize">{pod}</p>
+                          <p className="text-sm text-muted-foreground">{perf.total} total requests</p>
+                        </div>
+                        <Badge variant={perf.completion_percent >= 50 ? 'default' : 'secondary'}>
+                          {perf.completion_percent.toFixed(0)}% complete
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">Cycle</p>
+                          <p className="font-semibold">{perf.cycle_time_days}d</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">In Progress</p>
+                          <p className="font-semibold">{perf.in_progress}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Velocity</p>
+                          <p className="font-semibold">{perf.velocity_per_week}/wk</p>
+                        </div>
+                      </div>
                     </div>
-                    <Badge variant={perf.completion_percent >= 50 ? 'default' : 'secondary'}>
-                      {perf.completion_percent.toFixed(0)}% complete
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
-                    <div>
-                      <p className="text-muted-foreground">Cycle</p>
-                      <p className="font-semibold">{perf.cycle_time_days}d</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">In Progress</p>
-                      <p className="font-semibold">{perf.in_progress}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Velocity</p>
-                      <p className="font-semibold">{perf.velocity_per_week}/wk</p>
-                    </div>
-                  </div>
-                </div>
+                  </TooltipTrigger>
+                  <TooltipContent>Click to filter dashboard by {pod}</TooltipContent>
+                </UITooltip>
               )
             ))}
           </div>
