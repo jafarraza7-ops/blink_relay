@@ -58,6 +58,7 @@ export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitte
   const [sortCol, setSortCol] = useState<SortCol>('created_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [page, setPage] = useState(1)
+  const [pageGroup, setPageGroup] = useState(0) // 0 = pages 1-10, 1 = pages 11-20, etc.
   const buildLink = rowLinkBuilder ?? ((req: BlinkRequest) => `/requests/${req.id}`)
 
   const sorted = useMemo(
@@ -203,17 +204,49 @@ export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitte
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+
+          {/* Previous group ellipsis */}
+          {pageGroup > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 p-0 text-xs"
+              onClick={() => setPageGroup((g) => g - 1)}
+            >
+              ...
+            </Button>
+          )}
+
+          {/* Page numbers for current group */}
+          {Array.from({ length: Math.min(10, totalPages - pageGroup * 10) }, (_, i) => pageGroup * 10 + i + 1).map((p) => (
             <Button
               key={p}
               variant={p === safePage ? 'default' : 'outline'}
               size="sm"
               className="h-7 w-7 p-0 text-xs"
-              onClick={() => setPage(p)}
+              onClick={() => {
+                setPage(p)
+                // Auto-update page group if needed
+                const newGroup = Math.floor((p - 1) / 10)
+                if (newGroup !== pageGroup) setPageGroup(newGroup)
+              }}
             >
               {p}
             </Button>
           ))}
+
+          {/* Next group ellipsis */}
+          {pageGroup * 10 + 10 < totalPages && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 p-0 text-xs"
+              onClick={() => setPageGroup((g) => g + 1)}
+            >
+              ...
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
