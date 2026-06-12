@@ -134,7 +134,7 @@ export function PMSummaryPage() {
   const { data: podPerf } = useQuery({ queryKey: ['analytics', 'pod-performance'], queryFn: fetchPodPerformance, refetchInterval: 30000, enabled: authReady })
   const { data: escalations } = useQuery({ queryKey: ['analytics', 'escalations'], queryFn: fetchEscalations, refetchInterval: 30000, enabled: authReady })
   const { data: trend } = useQuery({ queryKey: ['analytics', 'trend'], queryFn: fetchTrend, refetchInterval: 30000, enabled: authReady })
-  const { data: aging } = useQuery({ queryKey: ['analytics', 'aging'], queryFn: fetchAging, refetchInterval: 30000, enabled: authReady })
+  const { data: aging, isLoading: agingLoading, error: agingError } = useQuery({ queryKey: ['analytics', 'aging'], queryFn: fetchAging, refetchInterval: 30000, enabled: authReady })
 
   const funnelChartData = useMemo(() => {
     if (!funnel) return []
@@ -294,6 +294,8 @@ export function PMSummaryPage() {
       </div>
 
       {/* Request Aging Overview - Prominent placement */}
+      {agingLoading && <div className="text-center py-4 text-muted-foreground">Loading aging data...</div>}
+      {agingError && <div className="text-center py-4 text-red-600">Error loading aging data: {agingError.message}</div>}
       {aging && (
         <Card className="border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50">
           <CardHeader>
