@@ -668,15 +668,33 @@ async def get_request(
 @router.get("/requests/{request_id}/similar", response_model=list[SimilarRequestResponse])
 async def get_similar_requests(
     request_id: uuid.UUID,
+    user: Annotated[UserClaims, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     limit: Annotated[int, Query(ge=1, le=10)] = 5,
 ) -> list[SimilarRequestResponse]:
     """Find requests similar to the given request by keyword matching.
 
-    Returns up to `limit` similar requests from the same pod/type,
-    ranked by Jaccard similarity score (0-100).
+    Requestors can only view similar requests for their own requests.
+    PMs can view similar requests for any request.
+
+    Returns up to `limit` similar requests ranked by Jaccard similarity score (0-100).
     """
     from app.services.similarity_service import find_similar_requests
+
+    # Get the reference request
+    req = await db.get(Request, request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    # Permission check: requestors can only view similar requests for their own requests
+    is_privileged = any(r in user.roles for r in (Role.PRODUCT_MANAGER, Role.ADMIN))
+    is_owner = req.submitter_oid == user.oid
+
+    if not (is_owner or is_privileged):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view similar requests for your own requests",
+        )
 
     similar = await find_similar_requests(db, str(request_id), limit=limit)
     return [SimilarRequestResponse(**s.__dict__) for s in similar]
