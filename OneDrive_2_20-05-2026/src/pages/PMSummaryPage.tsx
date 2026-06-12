@@ -293,6 +293,86 @@ export function PMSummaryPage() {
         </UITooltip>
       </div>
 
+      {/* Request Aging Overview - Prominent placement */}
+      {aging && (
+        <Card className="border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50">
+          <CardHeader>
+            <CardTitle className="text-lg">Request Aging Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Aging Buckets */}
+              <div className="grid grid-cols-3 gap-4">
+                {/* Fresh */}
+                <div
+                  className="border-2 border-green-200 bg-green-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => navigate('/dashboard')}
+                >
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-xs text-green-700 font-medium">Fresh</p>
+                      <p className="text-3xl font-bold text-green-900">{aging.fresh.count}</p>
+                      <p className="text-xs text-green-600 mt-1">{aging.fresh.label}</p>
+                    </div>
+                    <div className="text-4xl">🟢</div>
+                  </div>
+                </div>
+
+                {/* Aging */}
+                <div
+                  className="border-2 border-yellow-200 bg-yellow-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => navigate('/dashboard')}
+                >
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-xs text-yellow-700 font-medium">Aging</p>
+                      <p className="text-3xl font-bold text-yellow-900">{aging.aging.count}</p>
+                      <p className="text-xs text-yellow-600 mt-1">{aging.aging.label}</p>
+                    </div>
+                    <div className="text-4xl">🟡</div>
+                  </div>
+                </div>
+
+                {/* Stale */}
+                <div
+                  className="border-2 border-red-200 bg-red-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => navigate('/dashboard')}
+                >
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-xs text-red-700 font-medium">Stale</p>
+                      <p className="text-3xl font-bold text-red-900">{aging.stale.count}</p>
+                      <p className="text-xs text-red-600 mt-1">{aging.stale.label}</p>
+                    </div>
+                    <div className="text-4xl">🔴</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Top Stale Requests */}
+              {aging.stale_requests.length > 0 && (
+                <div className="border-t border-orange-200 pt-4">
+                  <h4 className="font-semibold text-sm mb-3 text-red-900">⚠️ Oldest Stale Requests</h4>
+                  <div className="space-y-2">
+                    {aging.stale_requests.map((req, idx) => (
+                      <div key={idx} className="border-l-4 border-red-400 pl-3 py-2 bg-red-50/50 rounded text-sm hover:bg-red-100/50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <p className="font-semibold text-red-900">{req.reference_id}</p>
+                            <p className="text-xs text-red-700 mt-0.5">{req.title}</p>
+                          </div>
+                          <Badge variant="destructive" className="ml-2">{req.days_idle}d</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Funnel & Trend */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Funnel Chart */}
@@ -414,85 +494,6 @@ export function PMSummaryPage() {
         </Card>
       )}
 
-      {/* Request Aging */}
-      {aging && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Request Aging Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {/* Aging Buckets */}
-              <div className="grid grid-cols-3 gap-4">
-                {/* Fresh */}
-                <div
-                  className="border-2 border-green-200 bg-green-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate('/dashboard')}
-                >
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-xs text-green-700 font-medium">Fresh</p>
-                      <p className="text-2xl font-bold text-green-900">{aging.fresh.count}</p>
-                      <p className="text-xs text-green-600 mt-1">{aging.fresh.label}</p>
-                    </div>
-                    <div className="text-3xl">🟢</div>
-                  </div>
-                </div>
-
-                {/* Aging */}
-                <div
-                  className="border-2 border-yellow-200 bg-yellow-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate('/dashboard')}
-                >
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-xs text-yellow-700 font-medium">Aging</p>
-                      <p className="text-2xl font-bold text-yellow-900">{aging.aging.count}</p>
-                      <p className="text-xs text-yellow-600 mt-1">{aging.aging.label}</p>
-                    </div>
-                    <div className="text-3xl">🟡</div>
-                  </div>
-                </div>
-
-                {/* Stale */}
-                <div
-                  className="border-2 border-red-200 bg-red-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate('/dashboard')}
-                >
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-xs text-red-700 font-medium">Stale</p>
-                      <p className="text-2xl font-bold text-red-900">{aging.stale.count}</p>
-                      <p className="text-xs text-red-600 mt-1">{aging.stale.label}</p>
-                    </div>
-                    <div className="text-3xl">🔴</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Top Stale Requests */}
-              {aging.stale_requests.length > 0 && (
-                <div className="border-t pt-6">
-                  <h4 className="font-semibold text-sm mb-3">Oldest Stale Requests</h4>
-                  <div className="space-y-2">
-                    {aging.stale_requests.map((req, idx) => (
-                      <div key={idx} className="border-l-4 border-red-400 pl-3 py-2 bg-red-50/50 rounded text-sm">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-semibold text-red-900">{req.reference_id}</p>
-                            <p className="text-xs text-red-700 mt-0.5">{req.title}</p>
-                          </div>
-                          <Badge variant="destructive" className="ml-2">{req.days_idle}d</Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
