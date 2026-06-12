@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { AlertTriangle, TrendingUp, Users, Clock, CheckCircle2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -77,6 +78,7 @@ const fetchTrend = async () => {
 }
 
 export function PMSummaryPage() {
+  const navigate = useNavigate()
   const { isPM, isReviewer, isLoading: authLoading, user } = useAuth()
 
   if (authLoading) {
@@ -122,6 +124,13 @@ export function PMSummaryPage() {
       requests: count as number,
     }))
   }, [trend])
+
+  const drillInto = (filterType: string, filterValue: string) => {
+    const params = new URLSearchParams()
+    if (filterType === 'status') params.append('status', filterValue)
+    if (filterType === 'pod') params.append('pod', filterValue)
+    navigate(`/dashboard?${params.toString()}`)
+  }
 
   const handleExport = () => {
     const timestamp = new Date().toISOString().split('T')[0]
@@ -180,7 +189,7 @@ export function PMSummaryPage() {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
@@ -192,7 +201,7 @@ export function PMSummaryPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => drillInto('status', 'Approved')}>
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
@@ -205,7 +214,7 @@ export function PMSummaryPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
@@ -218,7 +227,7 @@ export function PMSummaryPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/dashboard')}>
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
               <div>
@@ -282,7 +291,11 @@ export function PMSummaryPage() {
           <div className="space-y-4">
             {podPerf && Object.entries(podPerf).map(([pod, perf]) => (
               perf.total > 0 && (
-                <div key={pod} className="border-l-4 border-blue-500 pl-4 py-2">
+                <div
+                  key={pod}
+                  className="border-l-4 border-blue-500 pl-4 py-2 cursor-pointer hover:bg-accent/50 transition-colors rounded"
+                  onClick={() => drillInto('pod', pod)}
+                >
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-semibold capitalize">{pod}</p>

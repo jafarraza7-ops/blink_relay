@@ -17,7 +17,8 @@
  * the download always matches exactly what the user sees on screen.
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Activity, CheckCircle2, Clock, Download, FileText, Search, SlidersHorizontal, X, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -78,9 +79,18 @@ function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
 
 /** Main reviewer/PM dashboard with multi-select filters and CSV export. */
 export function DashboardPage() {
+  const [searchParams] = useSearchParams()
+
   // ── Filter state ────────────────────────────────────────────────────────────
-  const [statuses, setStatuses] = useState<RequestStatus[]>([])
-  const [pods, setPods] = useState<Pod[]>([])
+  // Initialize from URL params if present (drill-down from PM Summary)
+  const [statuses, setStatuses] = useState<RequestStatus[]>(() => {
+    const param = searchParams.get('status')
+    return param ? [param as RequestStatus] : []
+  })
+  const [pods, setPods] = useState<Pod[]>(() => {
+    const param = searchParams.get('pod')
+    return param ? [param as Pod] : []
+  })
   const [priorities, setPriorities] = useState<Priority[]>([])
   const [types, setTypes] = useState<RequestType[]>([])
   const [search, setSearch] = useState('')
