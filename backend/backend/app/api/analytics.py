@@ -348,7 +348,7 @@ async def get_request_aging(
                 "reference_id": req.reference_id or str(req.id),
                 "title": req.title,
                 "status": req.status,
-                "days_idle": (now - req.updated_at).days,
+                "days_idle": (now - (req.updated_at.replace(tzinfo=timezone.utc) if req.updated_at and req.updated_at.tzinfo is None else req.updated_at)).days,
                 "pod": req.pod,
             }
             for req in stale_requests
