@@ -183,6 +183,26 @@ export function PMSummaryPage() {
       ['Status', 'Count', 'Conversion %'],
       ...Object.entries(funnel || {}).map(([status, data]) => [status, data.count, data.conversion_percent]),
       [],
+      ['REQUEST AGING'],
+      ['Bucket', 'Count', 'Days Range'],
+      ['Fresh', aging?.fresh.count || 0, aging?.fresh.label || '0-30 days'],
+      ['Aging', aging?.aging.count || 0, aging?.aging.label || '30-60 days'],
+      ['Stale', aging?.stale.count || 0, aging?.stale.label || '60+ days'],
+      [],
+      ...(aging?.stale_requests && aging.stale_requests.length > 0
+        ? [
+            ['OLDEST STALE REQUESTS'],
+            ['Reference ID', 'Title', 'Status', 'Days Idle', 'Pod'],
+            ...aging.stale_requests.map(req => [
+              req.reference_id,
+              req.title,
+              req.status,
+              req.days_idle,
+              req.pod,
+            ]),
+            [],
+          ]
+        : []),
       ['POD PERFORMANCE'],
       ['Pod', 'Total', 'Completed', 'Completion %', 'In Progress', 'Cycle Time (days)', 'Velocity/Week'],
       ...Object.entries(podPerf || {}).map(([pod, perf]) => [
