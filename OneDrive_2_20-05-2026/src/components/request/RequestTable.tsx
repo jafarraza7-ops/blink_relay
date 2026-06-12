@@ -58,7 +58,6 @@ export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitte
   const [sortCol, setSortCol] = useState<SortCol>('created_at')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [page, setPage] = useState(1)
-  const [pageGroup, setPageGroup] = useState(0) // 0 = pages 1-10, 1 = pages 11-20, etc.
   const buildLink = rowLinkBuilder ?? ((req: BlinkRequest) => `/requests/${req.id}`)
 
   const sorted = useMemo(
@@ -191,66 +190,77 @@ export function RequestTable({ requests, isLoading, rowLinkBuilder, hideSubmitte
 
     {totalPages > 1 && (
       <div className="flex items-center justify-between border-t px-4 py-3">
-        <p className="text-xs text-muted-foreground">
-          Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, sorted.length)} of {sorted.length}
+        <p className="text-xs text-muted-foreground font-medium">
+          Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, sorted.length)} of {sorted.length} requests
         </p>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <Button
             variant="outline"
             size="sm"
-            className="h-7 w-7 p-0"
+            className="h-8 w-8 p-0"
             disabled={safePage <= 1}
             onClick={() => setPage((p) => p - 1)}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
 
-          {/* Previous group ellipsis */}
-          {pageGroup > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 p-0 text-xs"
-              onClick={() => setPageGroup((g) => g - 1)}
-            >
-              ...
-            </Button>
-          )}
-
-          {/* Page numbers for current group */}
-          {Array.from({ length: Math.min(10, totalPages - pageGroup * 10) }, (_, i) => pageGroup * 10 + i + 1).map((p) => (
+          {/* First 3 pages */}
+          {Array.from({ length: Math.min(3, totalPages) }, (_, i) => i + 1).map((p) => (
             <Button
               key={p}
               variant={p === safePage ? 'default' : 'outline'}
               size="sm"
-              className="h-7 w-7 p-0 text-xs"
-              onClick={() => {
-                setPage(p)
-                // Auto-update page group if needed
-                const newGroup = Math.floor((p - 1) / 10)
-                if (newGroup !== pageGroup) setPageGroup(newGroup)
-              }}
+              className="h-8 w-8 p-0 text-xs"
+              onClick={() => setPage(p)}
             >
               {p}
             </Button>
           ))}
 
-          {/* Next group ellipsis */}
-          {pageGroup * 10 + 10 < totalPages && (
+          {/* Ellipsis if gap between first 3 and last 3 */}
+          {totalPages > 6 && safePage > 4 && (
+            <span className="text-muted-foreground px-1">...</span>
+          )}
+
+          {/* Middle pages around current page */}
+          {totalPages > 6 && safePage > 4 && safePage < totalPages - 3 && (
             <Button
-              variant="outline"
+              variant={safePage >= 4 && safePage <= totalPages - 3 ? 'default' : 'outline'}
               size="sm"
-              className="h-7 px-2 p-0 text-xs"
-              onClick={() => setPageGroup((g) => g + 1)}
+              className="h-8 w-8 p-0 text-xs"
+              onClick={() => setPage(safePage)}
             >
-              ...
+              {safePage}
             </Button>
           )}
+
+          {/* Ellipsis if gap between first 3 and last 3 */}
+          {totalPages > 6 && safePage < totalPages - 3 && (
+            <span className="text-muted-foreground px-1">...</span>
+          )}
+
+          {/* Last 3 pages */}
+          {Array.from(
+            { length: Math.min(3, totalPages) },
+            (_, i) => Math.max(totalPages - 2, 1) + i
+          )
+            .filter((p) => p <= totalPages && p > 3)
+            .map((p) => (
+              <Button
+                key={p}
+                variant={p === safePage ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 w-8 p-0 text-xs"
+                onClick={() => setPage(p)}
+              >
+                {p}
+              </Button>
+            ))}
 
           <Button
             variant="outline"
             size="sm"
-            className="h-7 w-7 p-0"
+            className="h-8 w-8 p-0"
             disabled={safePage >= totalPages}
             onClick={() => setPage((p) => p + 1)}
           >
