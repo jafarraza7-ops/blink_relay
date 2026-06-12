@@ -72,7 +72,7 @@ async def db_session():
 def app(db_session: AsyncSession):
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
-    from app.api import auth, files, health, requests, thread, webhook, workflow
+    from app.api import analytics, auth, files, health, requests, thread, webhook, workflow
 
     _app = FastAPI()
     _app.add_middleware(
@@ -80,6 +80,7 @@ def app(db_session: AsyncSession):
     )
     _app.include_router(auth.router, prefix="/api")
     _app.include_router(requests.router, prefix="/api")
+    _app.include_router(analytics.router, prefix="/api")
     _app.include_router(workflow.router, prefix="/api")
     _app.include_router(thread.router, prefix="/api")
     _app.include_router(files.router, prefix="/api")

@@ -345,6 +345,7 @@ async def get_request_aging(
         },
         "stale_requests": [
             {
+                "id": str(req.id),
                 "reference_id": req.reference_id or str(req.id),
                 "title": req.title,
                 "status": req.status,

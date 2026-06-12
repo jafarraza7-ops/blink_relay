@@ -60,6 +60,7 @@ interface AgingBucket {
 }
 
 interface StaleRequest {
+  id: string
   reference_id: string
   title: string
   status: string
@@ -357,7 +358,11 @@ export function PMSummaryPage() {
                   <h4 className="font-semibold text-sm mb-3 text-red-900">⚠️ Oldest Stale Requests</h4>
                   <div className="space-y-2">
                     {aging.stale_requests.map((req, idx) => (
-                      <div key={idx} className="border-l-4 border-red-400 pl-3 py-2 bg-red-50/50 rounded text-sm hover:bg-red-100/50 transition-colors">
+                      <div
+                        key={idx}
+                        className="border-l-4 border-red-400 pl-3 py-2 bg-red-50/50 rounded text-sm hover:bg-red-100/50 transition-colors cursor-pointer"
+                        onClick={() => window.open(`/requests/${req.id}`, '_blank')}
+                      >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <p className="font-semibold text-red-900">{req.reference_id}</p>
