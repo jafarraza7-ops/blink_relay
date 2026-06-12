@@ -27,6 +27,7 @@ celery_app.conf.update(
         "app.workers.tasks.task_create_jira_ticket": {"queue": "jira"},
         "app.workers.tasks.task_send_status_notification": {"queue": "notifications"},
         "app.workers.tasks.task_send_email": {"queue": "notifications"},
+        "app.workers.tasks.task_send_72hr_no_action_reminder": {"queue": "reminders"},
         "app.workers.reminder_tasks.task_send_pending_request_reminder": {"queue": "reminders"},
     },
     beat_schedule={
@@ -41,6 +42,12 @@ celery_app.conf.update(
         "send-escalation-digest-daily": {
             "task": "app.workers.tasks.task_send_escalation_digest",
             "schedule": crontab(hour=9, minute=30),
+        },
+        # Send 72-hour no-action reminder to PMs for unclaimed idle requests.
+        # Runs every day at 12:30 PM UTC (6:00 PM IST).
+        "send-72hr-no-action-reminder-daily": {
+            "task": "app.workers.tasks.task_send_72hr_no_action_reminder",
+            "schedule": crontab(hour=12, minute=30),
         },
         # Send weekly summary digest to all stakeholders.
         # Runs every Monday at 9:00 AM UTC.

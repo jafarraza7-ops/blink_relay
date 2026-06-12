@@ -848,3 +848,148 @@ def task_send_escalation_digest(self) -> dict:
             }
 
     return _run(_send_digest())
+
+
+# ── 72-Hour No-Action Reminder Task ───────────────────────────────────────────
+
+@celery_app.task(
+    bind=True,
+    name="app.workers.tasks.task_send_72hr_no_action_reminder",
+    max_retries=2,
+    default_retry_delay=30,
+    autoretry_for=(Exception,),
+)
+def task_send_72hr_no_action_reminder(self) -> dict:
+    """Send daily reminder email to PMs for requests with no action for 72+ hours.
+
+    Finds all requests that:
+    - Have not been claimed by a PM (claimed_by_oid is NULL)
+    - Have not been updated in 72+ hours (updated_at < now - 72 hours)
+    - Are in actionable status (Submitted, InReview, AwaitingInfo, Approved)
+    - Either have never received a reminder, or last reminder was >24h ago
+
+    Sends one email per PM listing all unclaimed idle requests assigned to their pod.
+    Updates reminder_sent_at for each request to prevent duplicate reminders.
+    """
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import and_, or_, select
+
+    from app.core.config import get_settings as _gs
+    from app.core.database import db_session
+    from app.models.request import Request, RequestStatus, User
+    from app.services.notification_service import NotificationService
+
+    _s = _gs()
+
+    async def _send_reminders():
+        now = datetime.now(timezone.utc)
+        threshold_72h = now - timedelta(hours=72)
+        threshold_24h = now - timedelta(hours=24)
+
+        async with db_session() as db:
+            # Find all requests with no action for 72+ hours and no PM claim
+            stmt = select(Request).where(
+                and_(
+                    Request.updated_at < threshold_72h,
+                    Request.claimed_by_oid.is_(None),
+                    Request.status.in_([
+                        RequestStatus.SUBMITTED,
+                        RequestStatus.IN_REVIEW,
+                        RequestStatus.AWAITING_INFO,
+                        RequestStatus.APPROVED,
+                    ]),
+                    or_(
+                        Request.reminder_sent_at.is_(None),
+                        Request.reminder_sent_at < threshold_24h,
+                    ),
+                )
+            )
+            idle_requests = (await db.execute(stmt)).scalars().all()
+
+            if not idle_requests:
+                logger.info("No idle unclaimed requests found for 72-hour reminder")
+                return {"requests_found": 0, "pms_notified": 0}
+
+            # Get all PMs
+            pm_stmt = select(User).where(User.roles.contains("ProductManager"))
+            pms = (await db.execute(pm_stmt)).scalars().all()
+            pm_emails = [pm.email for pm in pms if pm.email]
+
+            if not pm_emails:
+                logger.warning("No PMs found to send 72-hour reminder")
+                return {"requests_found": len(idle_requests), "pms_notified": 0}
+
+            # Build email content
+            ns = NotificationService()
+            request_list_html = ""
+            for req in idle_requests:
+                days_idle = (now - req.updated_at).days
+                status_badge = f'<span style="display:inline-block; padding:4px 8px; border-radius:4px; background:#f0f0f0; font-size:12px; font-weight:500;">{req.status}</span>'
+                request_list_html += f'''
+                <tr>
+                  <td style="padding:8px; border-bottom:1px solid #eee;">
+                    <strong>{req.reference_id or req.id}</strong><br/>
+                    <a href="{_s.FRONTEND_URL}/requests/{req.id}" style="color:#0066cc; text-decoration:none;">{req.title}</a>
+                  </td>
+                  <td style="padding:8px; border-bottom:1px solid #eee;">{req.pod}</td>
+                  <td style="padding:8px; border-bottom:1px solid #eee; text-align:center;">{status_badge}</td>
+                  <td style="padding:8px; border-bottom:1px solid #eee; text-align:center;">{days_idle} days</td>
+                </tr>
+                '''
+
+            body_html = f'''
+            <html>
+            <head></head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+              <p>Hi,</p>
+              <p>The following requests have not been updated in 72+ hours and are waiting for PM action.</p>
+              <p><strong>Please claim and action these requests:</strong></p>
+              <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+                <thead>
+                  <tr style="background:#f5f5f5; border-bottom:2px solid #ddd;">
+                    <th style="padding:8px; text-align:left; font-weight:bold;">Request</th>
+                    <th style="padding:8px; text-align:left; font-weight:bold;">Pod</th>
+                    <th style="padding:8px; text-align:center; font-weight:bold;">Status</th>
+                    <th style="padding:8px; text-align:center; font-weight:bold;">Days Idle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {request_list_html}
+                </tbody>
+              </table>
+              <p><a href="{_s.FRONTEND_URL}/dashboard" style="color:#0066cc; text-decoration:none; font-weight:bold;">View Dashboard</a></p>
+              <hr style="border:none; border-top:1px solid #ddd; margin:20px 0;">
+              <p style="font-size:12px; color:#666;">This is an automated reminder sent daily at {now.strftime('%I:%M %p UTC')}.</p>
+            </body>
+            </html>
+            '''
+
+            # Send to all PMs
+            sent_count = 0
+            for pm_email in pm_emails:
+                try:
+                    await ns.send_email(
+                        to=pm_email,
+                        subject=f"⏰ 72-Hour No-Action Reminder: {len(idle_requests)} request(s) waiting",
+                        body_html=body_html,
+                    )
+                    sent_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to send 72-hour reminder to {pm_email}: {e}")
+
+            # Update reminder_sent_at for all idle requests
+            for req in idle_requests:
+                req.reminder_sent_at = now
+            await db.commit()
+
+            logger.info(
+                f"Sent 72-hour no-action reminder to {sent_count} PM(s) for {len(idle_requests)} request(s)"
+            )
+
+            return {
+                "requests_found": len(idle_requests),
+                "pms_notified": sent_count,
+                "requests_updated": len(idle_requests),
+            }
+
+    return _run(_send_reminders())
