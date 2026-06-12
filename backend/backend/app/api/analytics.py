@@ -273,3 +273,84 @@ async def get_trend(
         trend[week_label] = count
 
     return trend
+
+
+@router.get("/request-aging")
+async def get_request_aging(
+    user: Annotated[UserClaims, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Get request aging breakdown: fresh, aging, stale by days idle.
+
+    Categories:
+    - Fresh: 0-30 days since last update
+    - Aging: 30-60 days since last update
+    - Stale: 60+ days since last update
+    """
+    _require_pm_or_reviewer(user)
+
+    now = datetime.now(timezone.utc)
+    fresh_threshold = now - timedelta(days=30)
+    aging_threshold = now - timedelta(days=60)
+
+    # Count requests in each aging bucket
+    fresh_result = await db.execute(
+        select(func.count()).select_from(Request).where(
+            Request.updated_at >= fresh_threshold
+        )
+    )
+    fresh_count = fresh_result.scalar() or 0
+
+    aging_result = await db.execute(
+        select(func.count()).select_from(Request).where(
+            and_(
+                Request.updated_at >= aging_threshold,
+                Request.updated_at < fresh_threshold,
+            )
+        )
+    )
+    aging_count = aging_result.scalar() or 0
+
+    stale_result = await db.execute(
+        select(func.count()).select_from(Request).where(
+            Request.updated_at < aging_threshold
+        )
+    )
+    stale_count = stale_result.scalar() or 0
+
+    # Get top 5 stale requests for detail view
+    stale_requests_result = await db.execute(
+        select(Request)
+        .where(Request.updated_at < aging_threshold)
+        .order_by(Request.updated_at.asc())
+        .limit(5)
+    )
+    stale_requests = stale_requests_result.scalars().all()
+
+    return {
+        "fresh": {
+            "count": fresh_count,
+            "label": "0-30 days",
+            "days_range": [0, 30],
+        },
+        "aging": {
+            "count": aging_count,
+            "label": "30-60 days",
+            "days_range": [30, 60],
+        },
+        "stale": {
+            "count": stale_count,
+            "label": "60+ days",
+            "days_range": [60, 999],
+        },
+        "stale_requests": [
+            {
+                "reference_id": req.reference_id or str(req.id),
+                "title": req.title,
+                "status": req.status,
+                "days_idle": (now - req.updated_at).days,
+                "pod": req.pod,
+            }
+            for req in stale_requests
+        ],
+    }
