@@ -139,7 +139,20 @@ export function ReviewPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Watermark for cancelled/rejected requests */}
+      {(req.status === 'Cancelled' || req.status === 'Rejected') && (
+        <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-10">
+          <div className={`text-9xl font-bold opacity-10 rotate-[-45deg] select-none ${
+            req.status === 'Cancelled'
+              ? 'text-orange-600'
+              : 'text-red-600'
+          }`}>
+            {req.status.toUpperCase()}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button asChild variant="ghost" size="sm">
