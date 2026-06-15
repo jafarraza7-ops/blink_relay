@@ -51,7 +51,6 @@ export function ReviewPage() {
   const [isClaiming, setIsClaiming] = useState(false)
 
   const isRejecting = newStatus === 'Rejected'
-  const isFinalStatus = req.status === 'Cancelled' || req.status === 'Rejected'
 
   const clarify = useSendClarification(id ?? '')
 
@@ -76,6 +75,8 @@ export function ReviewPage() {
   }
 
   if (isError || !req) return <Navigate to="/dashboard" replace />
+
+  const isFinalStatus = req.status === 'Cancelled' || req.status === 'Rejected'
 
   const handleApprove = () => {
     approve.mutate({}, {
