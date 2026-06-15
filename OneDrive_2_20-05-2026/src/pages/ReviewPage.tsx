@@ -51,6 +51,7 @@ export function ReviewPage() {
   const [isClaiming, setIsClaiming] = useState(false)
 
   const isRejecting = newStatus === 'Rejected'
+  const isFinalStatus = req.status === 'Cancelled' || req.status === 'Rejected'
 
   const clarify = useSendClarification(id ?? '')
 
@@ -220,13 +221,25 @@ export function ReviewPage() {
         {/* Actions sidebar */}
         {isPM && (
           <div className="space-y-4">
+            {/* Status: Final - No actions allowed */}
+            {isFinalStatus && (
+              <Card className="border-gray-300 bg-gray-50">
+                <CardHeader><CardTitle className="text-base text-gray-700">Request Finalized</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600">
+                    {req.status === 'Rejected' ? 'This request has been rejected. No further actions are available.' : 'This request has been cancelled. No further actions are available.'}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Approve */}
-            {!['Approved', 'Rejected', 'Completed', 'Closed'].includes(req.status) && (
+            {!['Approved', 'Rejected', 'Completed', 'Closed', 'Cancelled'].includes(req.status) && (
               <Card>
                 <CardHeader><CardTitle className="text-base text-green-700">Approve</CardTitle></CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-3">Approving will create a Jira ticket automatically.</p>
-                  <Button className="w-full bg-green-600 hover:bg-green-700 gap-2" onClick={handleApprove} disabled={approve.isPending}>
+                  <Button className="w-full bg-green-600 hover:bg-green-700 gap-2" onClick={handleApprove} disabled={approve.isPending || isFinalStatus}>
                     <CheckCircle2 className="h-4 w-4" />
                     {approve.isPending ? 'Approving…' : 'Approve Request'}
                   </Button>
@@ -265,7 +278,7 @@ export function ReviewPage() {
                 <CardContent className="space-y-3">
                   <p className="text-sm font-medium text-amber-900">{req.claimed_by_email}</p>
                   {req.claimed_by_oid === user?.oid && (
-                    <Button variant="outline" size="sm" onClick={handleUnclaim} disabled={isClaiming}>
+                    <Button variant="outline" size="sm" onClick={handleUnclaim} disabled={isClaiming || isFinalStatus}>
                       {isClaiming ? 'Releasing…' : 'Release Claim'}
                     </Button>
                   )}
@@ -273,7 +286,7 @@ export function ReviewPage() {
               </Card>
             )}
 
-            {!req.claimed_by_oid && isPM && (
+            {!req.claimed_by_oid && isPM && !isFinalStatus && (
               <Button
                 className="w-full gap-2"
                 onClick={handleClaim}
@@ -286,6 +299,7 @@ export function ReviewPage() {
             )}
 
             {/* Status change */}
+            {!isFinalStatus && (
             <Card>
               <CardHeader><CardTitle className="text-base">Update Status</CardTitle></CardHeader>
               <CardContent className="space-y-3">
@@ -353,9 +367,10 @@ export function ReviewPage() {
                 )}
               </CardContent>
             </Card>
+            )}
 
             {/* Request clarification */}
-            {!['Approved', 'Rejected', 'Completed', 'Closed'].includes(req.status) && (
+            {!['Approved', 'Rejected', 'Completed', 'Closed', 'Cancelled'].includes(req.status) && !isFinalStatus && (
               <Card>
                 <CardHeader><CardTitle className="text-base text-amber-700">Request Clarification</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
