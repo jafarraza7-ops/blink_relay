@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
     # Verify DB connectivity
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
-    logger.info("Database connection verified")
+    logger.info(f"Database connection verified: {settings.DATABASE_URL}")
 
     # Verify Redis connectivity (non-fatal in local mode when CELERY_TASK_ALWAYS_EAGER=True)
     try:

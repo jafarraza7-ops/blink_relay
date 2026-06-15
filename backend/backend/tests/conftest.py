@@ -34,9 +34,10 @@ from app.models.request import (  # noqa: F401 – ensure all models are registe
     RequestStatus, RequestType, User,
 )
 
-# ── SQLite in-memory test database ────────────────────────────────────────────
+# ── SQLite test database ────────────────────────────────────────────────────
 
-TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+# Use dev.db for testing to match development environment and persist test data
+TEST_DB_URL = "sqlite+aiosqlite:///./dev.db"
 
 test_engine = create_async_engine(TEST_DB_URL, echo=False)
 TestSessionLocal = async_sessionmaker(
