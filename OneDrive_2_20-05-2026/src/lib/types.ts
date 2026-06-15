@@ -9,6 +9,7 @@ export type RequestStatus =
   | 'InfoReceived'
   | 'Approved'
   | 'Rejected'
+  | 'Cancelled'
   | 'InProgress'
   | 'Completed'
   | 'Closed'

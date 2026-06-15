@@ -145,7 +145,7 @@ export function ReviewPage() {
       {/* Watermark for cancelled/rejected requests */}
       {(req.status === 'Cancelled' || req.status === 'Rejected') && (
         <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-10">
-          <div className={`text-9xl font-bold opacity-10 rotate-[-45deg] select-none ${
+          <div className={`text-9xl font-bold opacity-20 rotate-[-45deg] select-none ${
             req.status === 'Cancelled'
               ? 'text-orange-600'
               : 'text-red-600'
@@ -197,9 +197,21 @@ export function ReviewPage() {
           </Card>
 
           {/* Thread */}
-          <Card>
-            <CardHeader><CardTitle className="text-base">Conversation</CardTitle></CardHeader>
-            <CardContent><MessageThread requestId={req.id} internalOnly /></CardContent>
+          <Card className={isFinalStatus ? 'opacity-60 pointer-events-none' : ''}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Conversation</CardTitle>
+                {isFinalStatus && <span className="text-xs text-red-600 font-semibold">Read-only</span>}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isFinalStatus && (
+                <p className="text-sm text-muted-foreground mb-4 p-3 bg-muted rounded-md">
+                  This request is {req.status.toLowerCase()}. Conversation is read-only — no new messages can be added.
+                </p>
+              )}
+              <MessageThread requestId={req.id} internalOnly disabled={isFinalStatus} />
+            </CardContent>
           </Card>
 
           {/* Timeline */}

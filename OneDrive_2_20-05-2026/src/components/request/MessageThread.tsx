@@ -38,6 +38,7 @@ import { usersApi } from '@/lib/api'
 interface MessageThreadProps {
   requestId: string
   internalOnly?: boolean
+  disabled?: boolean
 }
 
 interface UserSuggestion {
@@ -50,7 +51,7 @@ function getInitials(name: string): string {
   return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
 }
 
-export function MessageThread({ requestId, internalOnly = false }: MessageThreadProps) {
+export function MessageThread({ requestId, internalOnly = false, disabled = false }: MessageThreadProps) {
   const { data: messages = [], isLoading } = useThread(requestId)
   const { mutate: postMessage, isPending } = usePostMessage(requestId)
   const { user } = useAuth()
@@ -233,6 +234,13 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
         })}
       </div>
 
+      {disabled ? (
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm text-muted-foreground p-3 bg-muted rounded-md">
+            Conversation is read-only on finalized requests.
+          </p>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-2 border-t pt-4">
         <div className="relative">
           <Textarea
@@ -302,6 +310,7 @@ export function MessageThread({ requestId, internalOnly = false }: MessageThread
           </Button>
         </div>
       </form>
+      )}
     </div>
   )
 }
