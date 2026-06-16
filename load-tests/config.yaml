@@ -1,0 +1,87 @@
+# Blink Relay Load Test Configuration
+api_host: "http://localhost:8000"
+api_base_path: "/api"
+
+profiles:
+  baseline:
+    description: "Normal business day - typical concurrent users"
+    total_users: 100
+    spawn_rate: 5
+    duration_minutes: 30
+    user_distribution:
+      BRUser: 0.7
+      LightLoadUser: 0.2
+      HeavyLoadUser: 0.1
+
+  peak:
+    description: "Peak hour - maximum concurrent users"
+    total_users: 500
+    spawn_rate: 10
+    duration_minutes: 45
+    user_distribution:
+      BRUser: 0.6
+      LightLoadUser: 0.2
+      HeavyLoadUser: 0.2
+
+  spike:
+    description: "Traffic spike - test system recovery"
+    total_users: 1000
+    spawn_rate: 50
+    duration_minutes: 15
+    user_distribution:
+      BRUser: 0.5
+      LightLoadUser: 0.3
+      HeavyLoadUser: 0.2
+
+  soak:
+    description: "Soak test - sustained load for stability"
+    total_users: 200
+    spawn_rate: 5
+    duration_minutes: 120
+    user_distribution:
+      BRUser: 0.7
+      LightLoadUser: 0.2
+      HeavyLoadUser: 0.1
+
+  stress:
+    description: "Stress test - find breaking point"
+    total_users: 2000
+    spawn_rate: 100
+    duration_minutes: 20
+    user_distribution:
+      BRUser: 0.5
+      LightLoadUser: 0.3
+      HeavyLoadUser: 0.2
+
+performance_targets:
+  response_time_p95_ms: 2000
+  response_time_p99_ms: 5000
+  response_time_avg_ms: 500
+  error_rate_percent: 1
+  min_throughput_rps: 50
+
+endpoint_targets:
+  "/requests?GET":
+    p95_ms: 1000
+    error_rate: 0.5
+
+  "/analytics/summary":
+    p95_ms: 2000
+    error_rate: 1.0
+
+logging:
+  log_level: "INFO"
+  csv_prefix: "results"
+  stats_history_csv: true
+  show_response_tables: true
+
+test_data:
+  request_types: ["Feature", "Defect"]
+  priorities: ["High", "Medium", "Low"]
+  pods: ["Driver", "Charge", "Host", "Ops"]
+  statuses: ["Submitted", "InReview", "AwaitingInfo", "Approved", "Rejected"]
+  regions: ["NA", "EU", "APAC"]
+
+auth:
+  test_email_domain: "load-test@blinkcharging.com"
+  test_tokens: []
