@@ -227,7 +227,7 @@ export function ReviewPage() {
           {/* Files */}
           <Card>
             <CardHeader><CardTitle className="text-base">Attachments</CardTitle></CardHeader>
-            <CardContent><FileAttachment requestId={req.id} /></CardContent>
+            <CardContent><FileAttachment requestId={req.id} canUpload={!isFinalStatus} /></CardContent>
           </Card>
         </div>
 
