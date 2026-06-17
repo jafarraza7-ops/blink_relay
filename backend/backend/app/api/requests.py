@@ -379,6 +379,14 @@ class RequestResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator("region", mode="before")
+    @classmethod
+    def _parse_region(cls, v: object) -> object:
+        import json as _json
+        if isinstance(v, str):
+            return _json.loads(v)
+        return v
+
 
 class RequestListResponse(BaseModel):
     items: list[RequestResponse]
@@ -590,7 +598,7 @@ async def get_escalation_summary(
     PM/Reviewer only. Returns counts by pod and priority.
     """
     from app.services.escalation_service import get_escalation_summary
-    if not (user.is_pm or user.is_reviewer):
+    if not (Role.PRODUCT_MANAGER in user.roles or Role.POD_REVIEWER in user.roles or Role.ADMIN in user.roles):
         raise HTTPException(status_code=403, detail="PMs and reviewers only")
 
     summary = await get_escalation_summary(db, days_threshold=7)

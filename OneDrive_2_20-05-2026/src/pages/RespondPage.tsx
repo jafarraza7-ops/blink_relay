@@ -168,7 +168,7 @@ export function RespondPage() {
                 <StatusBadge status={req.status} />
               </div>
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
               <TypeBadge type={req.request_type} />
               <PodBadge pod={req.pod} />
               <PriorityBadge priority={req.priority} />
@@ -177,12 +177,12 @@ export function RespondPage() {
           <CardContent className="space-y-4">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Business Problem</p>
-              <p className="mt-1 text-sm whitespace-pre-wrap">{req.business_problem}</p>
+              <p className="mt-1 text-sm whitespace-pre-wrap break-words break-all">{req.business_problem}</p>
             </div>
             {req.expected_outcome && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expected Outcome</p>
-                <p className="mt-1 text-sm whitespace-pre-wrap">{req.expected_outcome}</p>
+                <p className="mt-1 text-sm whitespace-pre-wrap break-words break-all">{req.expected_outcome}</p>
               </div>
             )}
             <div className="text-xs text-muted-foreground border-t pt-3">

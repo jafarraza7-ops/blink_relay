@@ -22,11 +22,11 @@ def upgrade() -> None:
     # Create email_login_tokens table
     op.create_table(
         "email_login_tokens",
-        sa.Column("id", sa.String(36), nullable=False),
+        sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("email", sa.String(254), nullable=False),
         sa.Column("token_hash", sa.String(255), nullable=False),
-        sa.Column("user_id", sa.String(36), nullable=True),
-        sa.Column("is_used", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("user_id", sa.Uuid(), nullable=True),
+        sa.Column("is_used", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
@@ -45,7 +45,7 @@ def upgrade() -> None:
 
     # Update users table to support email authentication
     op.add_column("users", sa.Column("auth_source", sa.String(20), nullable=True, server_default="azure_ad"))
-    op.add_column("users", sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.text("0")))
+    op.add_column("users", sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")))
     op.add_column("users", sa.Column("last_login_method", sa.String(20), nullable=True))
 
     # Make oid nullable to support email-only users

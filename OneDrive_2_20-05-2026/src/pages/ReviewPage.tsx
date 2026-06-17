@@ -413,7 +413,7 @@ function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm whitespace-pre-wrap">{value}</p>
+      <p className="mt-1 text-sm whitespace-pre-wrap break-words break-all">{value}</p>
     </div>
   )
 }

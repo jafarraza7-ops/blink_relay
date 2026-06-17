@@ -47,12 +47,17 @@ def _run(coro):
     """Run an async coroutine from a Celery task (sync or eager context)."""
     try:
         asyncio.get_running_loop()
+        running = True
+    except RuntimeError:
+        running = False
+
+    if running:
         # Called from within a running event loop (eager mode inside FastAPI).
         # Run in a fresh thread to avoid "This event loop is already running".
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             return pool.submit(asyncio.run, coro).result(timeout=30)
-    except RuntimeError:
+    else:
         # No running loop — safe to create one directly.
         loop = asyncio.new_event_loop()
         try:
@@ -402,6 +407,15 @@ def task_create_jsm_ticket(self, request_id: str) -> dict:
                 logger.info("JSM ticket already exists for %s: %s", request_id, req.jsm_ticket_key)
                 return {"key": req.jsm_ticket_key, "url": req.jsm_ticket_url, "skipped": True}
 
+            if _s.JSM_MOCK:
+                import random as _r
+                fake_key = f"BLR-{_r.randint(1000, 9999)}"
+                fake_url = f"https://blinkcharging.atlassian.net/servicedesk/customer/portal/1/{fake_key}"
+                req.jsm_ticket_key = fake_key
+                req.jsm_ticket_url = fake_url
+                logger.info("JSM_MOCK: fake ticket %s created for request %s", fake_key, request_id)
+                return {"key": fake_key, "url": fake_url}
+
             description = (
                 f"*Blink Relay reference:* {req.reference_id or request_id}\n\n"
                 f"*Business problem:*\n{req.business_problem}\n\n"
@@ -440,6 +454,12 @@ def task_jsm_add_comment(self, request_id: str, body: str, public: bool = True) 
     No-ops gracefully when the request has no JSM ticket yet (e.g. JSM creation
     task is still queued behind this one).
     """
+    from app.core.config import get_settings as _get_settings
+    _s = _get_settings()
+    if _s.JSM_MOCK:
+        logger.info("JSM_MOCK: skipping add_comment for request %s (no real ticket)", request_id)
+        return {"mock": True, "skipped": True}
+
     from app.core.database import db_session
     from app.models.request import Request
     from app.services.jsm_service import JsmService

@@ -87,15 +87,15 @@ export const POD_COLORS: Record<Pod, string> = {
 }
 
 export const PRIORITY_COLORS: Record<Priority, string> = {
-  Critical: 'text-red-700 font-medium',
-  High: 'text-orange-600 font-medium',
-  Medium: 'text-gray-600',
-  Low: 'text-gray-500',
+  Critical: 'bg-red-50 text-red-700 border-red-200',
+  High: 'bg-orange-50 text-orange-700 border-orange-200',
+  Medium: 'bg-gray-100 text-gray-600 border-gray-200',
+  Low: 'bg-gray-50 text-gray-500 border-gray-200',
 }
 
 export const TYPE_COLORS: Record<RequestType, string> = {
-  Feature: 'text-blue-600 font-medium',
-  Defect: 'text-red-600 font-medium',
+  Feature: 'bg-blue-50 text-blue-700 border-blue-200',
+  Defect: 'bg-red-50 text-red-700 border-red-200',
 }
 
 // ── Badge / pill color maps (active/selected) ─────────────────────────────────
