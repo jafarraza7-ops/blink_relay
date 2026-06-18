@@ -1,0 +1,59 @@
+name: Weekly Coverage Report
+
+on:
+  schedule:
+    # Every Monday at 9:00 AM UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  coverage-report:
+    name: Run Tests & Email Coverage Report
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend/backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        run: pytest --cov=app --cov-report=xml --cov-report=term-missing -q
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          REDIS_URL: redis://localhost:6379/0
+          AZURE_TENANT_ID: test-tenant
+          AZURE_CLIENT_ID: test-client
+          AZURE_CLIENT_SECRET: test-secret
+          JIRA_EMAIL: test@test.com
+          JIRA_API_TOKEN: test-token
+          AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net"
+          JSM_MOCK: "true"
+          JIRA_MOCK: "false"
+          SKIP_AUTH: "false"
+          SECRET_KEY: "ci-test-secret-key-not-for-production"
+          FRONTEND_URL: "http://localhost:5173"
+
+      - name: Send coverage report to PM group
+        run: |
+          python scripts/send_coverage_report.py \
+            --xml coverage.xml \
+            --smtp-host "${{ secrets.SMTP_HOST }}" \
+            --smtp-port "${{ secrets.SMTP_PORT }}" \
+            --smtp-user "${{ secrets.SMTP_USER }}" \
+            --smtp-pass "${{ secrets.SMTP_PASS }}" \
+            --smtp-from "${{ secrets.SMTP_FROM }}" \
+            --to pms@blinkcharging.com \
+            --run-url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --branch "${{ github.ref_name }}"
