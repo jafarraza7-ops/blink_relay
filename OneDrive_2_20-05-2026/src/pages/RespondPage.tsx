@@ -15,7 +15,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useRequest, useRespondToRequest, useCancelRequest } from '@/hooks/useRequests'
 import { useThread } from '@/hooks/useThread'
 import { useToast } from '@/components/ui/use-toast'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import type { RequestStatus } from '@/lib/types'
 
 // Mirrors the backend EDITABLE_STATUSES set in app/api/requests.py
@@ -211,7 +211,7 @@ export function RespondPage() {
                 <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
                   <p className="text-xs font-medium text-blue-700 uppercase tracking-wide mb-1">Reviewer asked</p>
                   <div className="text-sm text-blue-900"><TruncatedBody text={lastClarificationQ.body} /></div>
-                  <p className="text-xs text-blue-600 mt-1">— {lastClarificationQ.author_name}</p>
+                  <p className="text-xs text-blue-600 mt-1">— {lastClarificationQ.author_name} · {formatDateTime(lastClarificationQ.created_at)}</p>
                 </div>
               ) : (
                 <p className="text-sm text-amber-700">
