@@ -87,6 +87,7 @@ export function useRequestTimeline(id: string | null) {
     queryKey: requestKeys.timeline(id ?? ''),
     queryFn: () => (id ? requestsApi.getTimeline(id) : Promise.resolve([])),
     enabled: !!id,
+    refetchInterval: 15_000,
   })
 }
 
@@ -122,9 +123,9 @@ export function useUpdateStatus(requestId: string) {
   return useMutation<{ id: string; status: string }, Error, StatusUpdatePayload>({
     mutationFn: (payload) => workflowApi.updateStatus(requestId, payload),
     onSuccess: () => {
-      // Invalidate detail + lists + thread: status change may add a system message
       void queryClient.invalidateQueries({ queryKey: requestKeys.detail(requestId) })
       void queryClient.invalidateQueries({ queryKey: requestKeys.lists() })
+      void queryClient.invalidateQueries({ queryKey: requestKeys.timeline(requestId) })
       void queryClient.invalidateQueries({ queryKey: threadKeys.all(requestId) })
     },
   })
@@ -138,6 +139,7 @@ export function useApproveRequest(requestId: string) {
       void queryClient.invalidateQueries({ queryKey: requestKeys.detail(requestId) })
       void queryClient.invalidateQueries({ queryKey: requestKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: requestKeys.mineLists() })
+      void queryClient.invalidateQueries({ queryKey: requestKeys.timeline(requestId) })
       void queryClient.invalidateQueries({ queryKey: threadKeys.all(requestId) })
     },
   })
@@ -152,6 +154,7 @@ export function useRejectRequest(requestId: string) {
       void queryClient.invalidateQueries({ queryKey: requestKeys.detail(requestId) })
       void queryClient.invalidateQueries({ queryKey: requestKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: requestKeys.mineLists() })
+      void queryClient.invalidateQueries({ queryKey: requestKeys.timeline(requestId) })
       void queryClient.invalidateQueries({ queryKey: threadKeys.all(requestId) })
     },
   })
@@ -162,16 +165,15 @@ export function useCancelRequest(requestId: string) {
   return useMutation<{ id: string; status: string }, Error>({
     mutationFn: () => workflowApi.cancel(requestId),
     onSuccess: (data) => {
-      // Optimistically update the request detail cache with new status
       const detailKey = requestKeys.detail(requestId)
       queryClient.setQueryData(detailKey, (oldData: BlinkRequest | undefined) => {
         if (!oldData) return oldData
         return { ...oldData, status: data.status as any }
       })
 
-      // Invalidate lists to refetch with updated request
       void queryClient.invalidateQueries({ queryKey: requestKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: requestKeys.mineLists() })
+      void queryClient.invalidateQueries({ queryKey: requestKeys.timeline(requestId) })
       void queryClient.invalidateQueries({ queryKey: threadKeys.all(requestId) })
     },
   })
@@ -197,8 +199,8 @@ export function useSendClarification(requestId: string) {
   return useMutation<Message, Error, ClarifyPayload>({
     mutationFn: (payload) => threadApi.clarify(requestId, payload),
     onSuccess: () => {
-      // Refresh detail (status change) + thread (new system message added)
       void queryClient.invalidateQueries({ queryKey: requestKeys.detail(requestId) })
+      void queryClient.invalidateQueries({ queryKey: requestKeys.timeline(requestId) })
       void queryClient.invalidateQueries({ queryKey: threadKeys.all(requestId) })
     },
   })
