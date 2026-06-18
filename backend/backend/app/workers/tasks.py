@@ -238,26 +238,33 @@ def task_create_jira_ticket(
                         ticket["key"], req.jsm_ticket_key, exc_info=True,
                     )
 
-                # Comment on JSM so the requestor sees the implementation link.
-                task_jsm_add_comment.delay(
-                    request_id,
-                    f"Implementation ticket created: {ticket['key']} — {ticket['url']}",
-                    True,  # public
-                )
+            return {
+                **ticket,
+                "_jsm_ticket_key": req.jsm_ticket_key,
+                "_jsm_ticket_url": req.jsm_ticket_url,
+            }
 
-                # Comment on the Jira ticket so the dev team sees the JSM link.
-                jsm_url = req.jsm_ticket_url or f"{_settings.JIRA_BASE_URL}/browse/{req.jsm_ticket_key}"
-                task_jira_add_comment.delay(
-                    request_id,
-                    f"Linked to JSM service-desk ticket {req.jsm_ticket_key}: {jsm_url}",
-                )
+    result = _run(_create())
 
-            # Sync all attachments to the new Jira ticket (and JSM if present).
-            task_sync_attachments.delay(request_id)
+    # Follow-up tasks (cross-link comments, attachment sync) are skipped in eager
+    # mode: asyncpg connections can't be reused across event loops created by _run().
+    # In production (real Celery), these run as separate tasks with their own DB pool.
+    if result and result.get("key") and not _settings.CELERY_TASK_ALWAYS_EAGER:
+        jsm_key = result.get("_jsm_ticket_key")
+        if jsm_key:
+            task_jsm_add_comment.delay(
+                request_id,
+                f"Implementation ticket created: {result['key']} — {result['url']}",
+                True,
+            )
+            jsm_url = result.get("_jsm_ticket_url") or f"{_settings.JIRA_BASE_URL}/browse/{jsm_key}"
+            task_jira_add_comment.delay(
+                request_id,
+                f"Linked to Blink Relay ticket {jsm_key}: {jsm_url}",
+            )
+        task_sync_attachments.delay(request_id)
 
-            return ticket
-
-    return _run(_create())
+    return {k: v for k, v in result.items() if not k.startswith("_")} if result else result
 
 
 # ── Jira comment task ─────────────────────────────────────────────────────────
@@ -394,8 +401,8 @@ def task_create_jsm_ticket(self, request_id: str) -> dict:
     async def _create():
         from app.core.config import get_settings as _gs
         _s = _gs()
-        if not _s.JSM_MOCK and not (_s.JSM_SERVICE_DESK_ID and _s.JSM_REQUEST_TYPE_ID):
-            logger.warning("task_create_jsm_ticket: JSM_REQUEST_TYPE_ID not set — skipping JSM ticket creation")
+        if not _s.JSM_MOCK and not (_s.JIRA_EMAIL and _s.JIRA_API_TOKEN):
+            logger.warning("task_create_jsm_ticket: JIRA credentials not set — skipping JSM ticket creation")
             return {"skipped": True}
 
         async with db_session() as db:
@@ -416,27 +423,45 @@ def task_create_jsm_ticket(self, request_id: str) -> dict:
                 logger.info("JSM_MOCK: fake ticket %s created for request %s", fake_key, request_id)
                 return {"key": fake_key, "url": fake_url}
 
-            description = (
-                f"*Blink Relay reference:* {req.reference_id or request_id}\n\n"
-                f"*Business problem:*\n{req.business_problem}\n\n"
-                f"*Affected area:* {req.affected_area}\n"
-                f"*Region:* {', '.join(req.region) if isinstance(req.region, list) else req.region}\n"
-                f"*Priority:* {req.priority}\n"
-                f"*POD:* {req.pod}"
-            )
+            # Use Jira REST API directly (issue creation) — avoids needing JSM agent role.
+            import base64 as _b64
+            import httpx as _httpx
 
-            jsm = JsmService()
-            ticket = await jsm.create_request(
-                summary=req.title,
-                description=description,
-                reporter_email=req.submitter_email,
-                reference_id=req.reference_id,
-                labels=[f"pod-{str(req.pod).lower()}", f"type-{str(req.request_type).lower()}"],
-            )
-            req.jsm_ticket_key = ticket["key"]
-            req.jsm_ticket_url = ticket["url"]
-            logger.info("JSM ticket %s created for request %s", ticket["key"], request_id)
-            return ticket
+            region_str = ', '.join(req.region) if isinstance(req.region, list) else str(req.region)
+            description_adf = {
+                "type": "doc",
+                "version": 1,
+                "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": f"Blink Relay reference: {req.reference_id or request_id}"}]},
+                    {"type": "paragraph", "content": [{"type": "text", "text": f"Business problem:\n{req.business_problem}"}]},
+                    {"type": "paragraph", "content": [{"type": "text", "text": f"Affected area: {req.affected_area} | Region: {region_str} | Priority: {req.priority} | POD: {req.pod} | Submitted by: {req.submitter_email}"}]},
+                ]
+            }
+            token = _b64.b64encode(f"{_s.JIRA_EMAIL}:{_s.JIRA_API_TOKEN}".encode()).decode()
+            headers = {"Authorization": f"Basic {token}", "Content-Type": "application/json", "Accept": "application/json"}
+            payload = {
+                "fields": {
+                    "project": {"key": "REL"},
+                    "issuetype": {"id": "10250"},
+                    "summary": f"[{req.reference_id}] {req.request_type}: {req.title}",
+                    "description": description_adf,
+                }
+            }
+            async with _httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{_s.JIRA_BASE_URL.rstrip('/')}/rest/api/3/issue",
+                    headers=headers,
+                    json=payload,
+                )
+                if resp.status_code != 201:
+                    raise RuntimeError(f"Jira issue creation failed {resp.status_code}: {resp.text}")
+                data = resp.json()
+                key = data["key"]
+                url = f"{_s.JIRA_BASE_URL.rstrip('/')}/browse/{key}"
+                req.jsm_ticket_key = key
+                req.jsm_ticket_url = url
+                logger.info("Jira ticket %s created for request %s", key, request_id)
+                return {"key": key, "url": url}
 
     return _run(_create())
 
@@ -456,9 +481,10 @@ def task_jsm_add_comment(self, request_id: str, body: str, public: bool = True) 
     """
     from app.core.config import get_settings as _get_settings
     _s = _get_settings()
-    if _s.JSM_MOCK:
-        logger.info("JSM_MOCK: skipping add_comment for request %s (no real ticket)", request_id)
-        return {"mock": True, "skipped": True}
+    # JSM portal comments are not supported (using Jira REST API for ticket creation).
+    logger.info("task_jsm_add_comment: skipping for request %s (no JSM portal access)", request_id)
+    return {"skipped": True}
+    # Dead code below kept for future JSM portal integration:
 
     from app.core.database import db_session
     from app.models.request import Request

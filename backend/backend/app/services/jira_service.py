@@ -212,14 +212,8 @@ class JiraService:
             "summary": title,
             "description": description_adf,
             "issuetype": {"name": issue_type},
-            "priority": {"name": priority},
             "labels": (labels or []) + ["blink-relay"],
         }
-        if component:
-            fields["components"] = [{"name": component}]
-        assignee = ({"accountId": assignee_account_id} if assignee_account_id else self._assignee_field())
-        if assignee:
-            fields["assignee"] = assignee
         return fields
 
     async def create_epic(
@@ -233,7 +227,7 @@ class JiraService:
         assignee_account_id: str | None = None,
     ) -> dict:
         fields = self._build_issue_fields(
-            project_key, title, description_adf, "Story", priority, labels, component, assignee_account_id
+            project_key, title, description_adf, "Task", priority, labels, component, assignee_account_id
         )
         return await self._post_issue({"fields": fields})
 
@@ -248,7 +242,7 @@ class JiraService:
         assignee_account_id: str | None = None,
     ) -> dict:
         fields = self._build_issue_fields(
-            project_key, title, description_adf, "Bug", priority, labels, component, assignee_account_id
+            project_key, title, description_adf, "Task", priority, labels, component, assignee_account_id
         )
         return await self._post_issue({"fields": fields})
 
