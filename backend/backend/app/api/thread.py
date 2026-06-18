@@ -268,16 +268,25 @@ async def send_clarification(
     prev_status = req.status
     req.status = RequestStatus.AWAITING_INFO
 
-    # Status change message
-    db.add(Message(
-        request_id=request_id,
-        author_oid=user.oid,
-        author_email=user.email,
-        author_name=user.name,
-        body=f"Status changed from **{prev_status}** to **Awaiting Info** by {user.name}.",
-        is_internal=False,
-        message_type=MessageType.STATUS_CHANGE,
-    ))
+    # Only log a status change if the status actually changed
+    if prev_status != RequestStatus.AWAITING_INFO:
+        db.add(Message(
+            request_id=request_id,
+            author_oid=user.oid,
+            author_email=user.email,
+            author_name=user.name,
+            body=f"Status changed from **{prev_status}** to **Awaiting Info** by {user.name}.",
+            is_internal=False,
+            message_type=MessageType.STATUS_CHANGE,
+        ))
+        db.add(AuditLog(
+            request_id=req.id,
+            actor_oid=user.oid,
+            actor_email=user.email,
+            action="clarification_requested",
+            previous_value=str(prev_status),
+            new_value=str(RequestStatus.AWAITING_INFO),
+        ))
 
     # Clarification message
     msg = Message(
@@ -290,16 +299,6 @@ async def send_clarification(
         message_type=MessageType.CLARIFICATION_QUESTION,
     )
     db.add(msg)
-
-    # Audit log for status change
-    db.add(AuditLog(
-        request_id=req.id,
-        actor_oid=user.oid,
-        actor_email=user.email,
-        action="clarification_requested",
-        previous_value=str(prev_status),
-        new_value=str(RequestStatus.AWAITING_INFO),
-    ))
 
     # Audit log for clarification message
     db.add(AuditLog(
