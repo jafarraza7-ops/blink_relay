@@ -643,16 +643,19 @@ def task_close_jsm_ticket(self, request_id: str, resolution_comment: str) -> dic
     autoretry_for=(Exception,),
 )
 def task_send_status_notification(self, request_id: str) -> None:
-    """Send an email to the requestor reflecting the current request status.
+    """Send status notification emails on any request status change.
 
-    Each status maps to a dedicated notification method (notify_submitted,
-    notify_approved, etc.) for tailored email copy. A Microsoft Teams
-    notification is also sent to the pod's webhook if one is configured.
+    - Submitter always receives the notification.
+    - PM group (pms@blinkcharging.com) is CC'd on all status changes so
+      every member of the TP/JSM space stays informed.
+    - The claiming PM is also notified individually if they are not already
+      covered by the group email.
     """
     from app.core.database import task_db_session as db_session
     from app.models.request import Request, RequestStatus
     from app.services.notification_service import NotificationService
     from app.services.pod_routing_service import PodRoutingService
+    from app.services.email_group_service import get_pm_group_emails
 
     async def _notify():
         async with db_session() as db:
@@ -664,6 +667,7 @@ def task_send_status_notification(self, request_id: str) -> None:
             notifier = NotificationService()
             ref = req.reference_id or str(req.id)
 
+            # --- Notify requestor ---
             if req.status == RequestStatus.SUBMITTED:
                 await notifier.notify_submitted(req.submitter_email, req.title, ref)
             elif req.status == RequestStatus.APPROVED:
@@ -693,6 +697,20 @@ def task_send_status_notification(self, request_id: str) -> None:
             else:
                 await notifier.notify_status_change(
                     req.submitter_email, req.title, ref, str(req.status)
+                )
+
+            # --- Notify PM group (TP/JSM space members) for all non-submission changes ---
+            if req.status != RequestStatus.SUBMITTED:
+                pm_group_email, _ = await get_pm_group_emails(db)
+                if pm_group_email:
+                    await notifier.notify_status_change(
+                        pm_group_email, req.title, ref, str(req.status)
+                    )
+
+            # --- Notify the claiming PM individually if set and not submitter ---
+            if req.claimed_by_email and req.claimed_by_email != req.submitter_email:
+                await notifier.notify_status_change(
+                    req.claimed_by_email, req.title, ref, str(req.status)
                 )
 
             webhook_url = routing.get_teams_webhook(req.pod)
