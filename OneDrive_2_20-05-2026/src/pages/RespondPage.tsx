@@ -108,7 +108,16 @@ export function RespondPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 py-8 relative">
+      {(req.status === 'Cancelled' || req.status === 'Rejected') && (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+          <div className={`text-9xl font-bold opacity-10 rotate-[-45deg] select-none whitespace-nowrap ${
+            req.status === 'Cancelled' ? 'text-orange-600' : 'text-red-600'
+          }`}>
+            {req.status.toUpperCase()}
+          </div>
+        </div>
+      )}
       <div className="mx-auto max-w-2xl px-4 space-y-6">
         {/* Brand + back navigation */}
         <div className="flex items-center justify-between gap-3">
