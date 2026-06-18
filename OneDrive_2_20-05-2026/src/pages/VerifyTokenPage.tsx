@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { AlertCircle, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,10 +19,14 @@ export function VerifyTokenPage() {
   
   const [state, setState] = useState<'loading' | 'success' | 'error'>('loading')
   const [error, setError] = useState<ErrorState | null>(null)
-  
+  const hasRun = useRef(false)
+
   const token = searchParams.get('token')
 
   useEffect(() => {
+    if (hasRun.current) return
+    hasRun.current = true
+
     const verifyToken = async () => {
       if (!token) {
         setError({
