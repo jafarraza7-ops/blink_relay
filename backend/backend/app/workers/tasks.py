@@ -218,53 +218,78 @@ def task_create_jira_ticket(
                 await db.commit()
                 logger.info("Jira ticket %s created for request %s", ticket["key"], request_id)
             except asyncio.TimeoutError:
-                # GRACEFUL DEGRADATION: Jira API timeout doesn't fail approval
-                # Requestor can still see the approved request; Jira ticket creation will retry
                 logger.warning(
-                    "Jira ticket creation timed out for request %s (>20s) — continuing without ticket",
-                    request_id, exc_info=True
+                    "Jira ticket creation timed out for request %s (>20s) — skipping link/comment steps",
+                    request_id,
                 )
-                # Don't set ticket key/url; leave for retry
                 await db.commit()
-                # Continue anyway so approval completes
+                return {}
 
-            # Link Jira ↔ JSM tickets so both show each other in Issue Links.
-            if req.jsm_ticket_key:
+            # ── Link TP ↔ REL tickets ─────────────────────────────────────────
+            jsm_key = req.jsm_ticket_key
+            jsm_url = req.jsm_ticket_url or (
+                f"{_settings.JIRA_BASE_URL}/browse/{jsm_key}" if jsm_key else None
+            )
+            tp_key = ticket["key"]
+            tp_url = ticket["url"]
+
+            if jsm_key:
                 try:
-                    await jira.link_issues(ticket["key"], req.jsm_ticket_key)
+                    await jira.link_issues(tp_key, jsm_key)
+                    logger.info("Linked %s ↔ %s", tp_key, jsm_key)
                 except Exception:
-                    logger.warning(
-                        "Failed to link %s ↔ %s — non-fatal",
-                        ticket["key"], req.jsm_ticket_key, exc_info=True,
-                    )
+                    logger.warning("Failed to link %s ↔ %s — non-fatal", tp_key, jsm_key, exc_info=True)
 
-            return {
-                **ticket,
-                "_jsm_ticket_key": req.jsm_ticket_key,
-                "_jsm_ticket_url": req.jsm_ticket_url,
-            }
+                # Comment on the REL (submission) ticket with the TP link.
+                try:
+                    await jira.add_comment(
+                        jsm_key,
+                        f"Implementation ticket created: {tp_key}\n{tp_url}\n\n"
+                        f"This request has been approved and is now being tracked in Jira.",
+                    )
+                    logger.info("Added TP link comment to %s", jsm_key)
+                except Exception:
+                    logger.warning("Failed to comment on %s — non-fatal", jsm_key, exc_info=True)
+
+                # Comment on the TP (implementation) ticket with the REL link.
+                try:
+                    await jira.add_comment(
+                        tp_key,
+                        f"Linked to Blink Relay submission ticket: {jsm_key}\n{jsm_url}\n\n"
+                        f"Originally submitted via Blink Relay (ref: {req.reference_id}).",
+                    )
+                    logger.info("Added REL link comment to %s", tp_key)
+                except Exception:
+                    logger.warning("Failed to comment on %s — non-fatal", tp_key, exc_info=True)
+
+            # ── Blink Relay audit trail message ───────────────────────────────
+            from app.models.request import Message, MessageType
+            audit_body = (
+                f"Implementation ticket **{tp_key}** created in Jira: {tp_url}"
+                + (f"\nLinked to submission ticket **{jsm_key}**: {jsm_url}" if jsm_key else "")
+            )
+            db.add(Message(
+                request_id=req.id,
+                author_email="system@blink-relay",
+                author_name="Blink Relay",
+                body=audit_body,
+                is_internal=True,
+                message_type=MessageType.COMMENT,
+            ))
+            await db.commit()
+
+            return ticket
 
     result = _run(_create())
 
-    # Follow-up tasks (cross-link comments, attachment sync) are skipped in eager
-    # mode: asyncpg connections can't be reused across event loops created by _run().
-    # In production (real Celery), these run as separate tasks with their own DB pool.
-    if result and result.get("key") and not _settings.CELERY_TASK_ALWAYS_EAGER:
-        jsm_key = result.get("_jsm_ticket_key")
-        if jsm_key:
-            task_jsm_add_comment.delay(
-                request_id,
-                f"Implementation ticket created: {result['key']} — {result['url']}",
-                True,
-            )
-            jsm_url = result.get("_jsm_ticket_url") or f"{_settings.JIRA_BASE_URL}/browse/{jsm_key}"
-            task_jira_add_comment.delay(
-                request_id,
-                f"Linked to Blink Relay ticket {jsm_key}: {jsm_url}",
-            )
-        task_sync_attachments.delay(request_id)
+    # Sync attachments to the new Jira ticket (runs outside _run to avoid nested loop issues).
+    if result and result.get("key"):
+        try:
+            task_sync_attachments.delay(request_id)
+        except Exception:
+            logger.warning("task_sync_attachments raised — non-fatal", exc_info=True)
 
-    return {k: v for k, v in result.items() if not k.startswith("_")} if result else result
+    return result
 
 
 # ── Jira comment task ─────────────────────────────────────────────────────────

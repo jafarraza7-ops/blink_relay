@@ -132,11 +132,15 @@ class JiraService:
         reraise=True,
     )
     async def add_comment(self, ticket_key: str, body: str) -> dict:
-        """Add a plain-text comment to a Jira issue."""
+        """Add a plain-text comment to a Jira issue.
+
+        Blank lines in `body` produce separate paragraphs in Jira.
+        """
+        paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
         adf_body = {
             "type": "doc",
             "version": 1,
-            "content": [_adf_paragraph(body)],
+            "content": [_adf_paragraph(p) for p in paragraphs] or [_adf_paragraph(body)],
         }
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
