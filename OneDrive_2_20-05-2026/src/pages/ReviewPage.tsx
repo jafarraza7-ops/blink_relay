@@ -141,11 +141,11 @@ export function ReviewPage() {
   }
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-6 relative min-h-full">
       {/* Watermark for cancelled/rejected requests */}
       {(req.status === 'Cancelled' || req.status === 'Rejected') && (
-        <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-10">
-          <div className={`text-9xl font-bold opacity-20 rotate-[-45deg] select-none ${
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+          <div className={`text-9xl font-bold opacity-10 rotate-[-45deg] select-none whitespace-nowrap ${
             req.status === 'Cancelled'
               ? 'text-orange-600'
               : 'text-red-600'
