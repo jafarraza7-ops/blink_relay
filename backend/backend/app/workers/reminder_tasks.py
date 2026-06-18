@@ -11,7 +11,6 @@ Task overview:
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -26,15 +25,7 @@ from app.workers.email_tasks import task_send_pending_reminder_email
 logger = logging.getLogger(__name__)
 
 
-def _run(coro):
-    """Run an async coroutine from a Celery task (sync or eager context)."""
-    try:
-        asyncio.get_running_loop()
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(asyncio.run, coro).result()
-    except RuntimeError:
-        return asyncio.run(coro)
+from app.workers.utils import run_async as _run
 
 
 @shared_task

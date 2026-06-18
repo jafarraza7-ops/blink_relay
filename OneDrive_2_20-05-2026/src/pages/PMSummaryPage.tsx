@@ -75,34 +75,9 @@ interface AgingData {
   stale_requests: StaleRequest[]
 }
 
-const fetchSummary = async () => {
-  const res = await apiClient.get('/analytics/summary')
-  return res.data as SummaryData
-}
-
-const fetchFunnel = async () => {
-  const res = await apiClient.get('/analytics/flow')
-  return res.data as FunnelData
-}
-
-const fetchPodPerformance = async () => {
-  const res = await apiClient.get('/analytics/pod-performance')
-  return res.data as PodPerformance
-}
-
-const fetchEscalations = async () => {
-  const res = await apiClient.get('/analytics/escalations')
-  return res.data as EscalationData
-}
-
-const fetchTrend = async () => {
-  const res = await apiClient.get('/analytics/trend')
-  return res.data as TrendData
-}
-
-const fetchAging = async () => {
-  const res = await apiClient.get('/analytics/request-aging')
-  return res.data as AgingData
+const fetchAnalytics = <T,>(endpoint: string) => async (): Promise<T> => {
+  const res = await apiClient.get(endpoint)
+  return res.data as T
 }
 
 export function PMSummaryPage() {
@@ -130,12 +105,19 @@ export function PMSummaryPage() {
 
   const authReady = !!user && (isPM || isReviewer)
 
-  const { data: summary } = useQuery({ queryKey: ['analytics', 'summary'], queryFn: fetchSummary, refetchInterval: 30000, enabled: authReady })
-  const { data: funnel } = useQuery({ queryKey: ['analytics', 'funnel'], queryFn: fetchFunnel, refetchInterval: 30000, enabled: authReady })
-  const { data: podPerf } = useQuery({ queryKey: ['analytics', 'pod-performance'], queryFn: fetchPodPerformance, refetchInterval: 30000, enabled: authReady })
-  const { data: escalations } = useQuery({ queryKey: ['analytics', 'escalations'], queryFn: fetchEscalations, refetchInterval: 30000, enabled: authReady })
-  const { data: trend } = useQuery({ queryKey: ['analytics', 'trend'], queryFn: fetchTrend, refetchInterval: 30000, enabled: authReady })
-  const { data: aging, isLoading: agingLoading, error: agingError } = useQuery({ queryKey: ['analytics', 'aging'], queryFn: fetchAging, refetchInterval: 30000, enabled: authReady })
+  const analyticsQuery = <T,>(key: string, endpoint: string) => ({
+    queryKey: ['analytics', key],
+    queryFn: fetchAnalytics<T>(endpoint),
+    refetchInterval: 30000,
+    enabled: authReady,
+  })
+
+  const { data: summary } = useQuery(analyticsQuery<SummaryData>('summary', '/analytics/summary'))
+  const { data: funnel } = useQuery(analyticsQuery<FunnelData>('funnel', '/analytics/flow'))
+  const { data: podPerf } = useQuery(analyticsQuery<PodPerformance>('pod-performance', '/analytics/pod-performance'))
+  const { data: escalations } = useQuery(analyticsQuery<EscalationData>('escalations', '/analytics/escalations'))
+  const { data: trend } = useQuery(analyticsQuery<TrendData>('trend', '/analytics/trend'))
+  const { data: aging, isLoading: agingLoading, error: agingError } = useQuery(analyticsQuery<AgingData>('aging', '/analytics/request-aging'))
 
   const funnelChartData = useMemo(() => {
     if (!funnel) return []

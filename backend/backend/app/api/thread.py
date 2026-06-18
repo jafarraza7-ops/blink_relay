@@ -192,39 +192,43 @@ async def post_message(
                 logger.info(f"ℹ️ Skipping self-email: {user.email} is both reviewer and requestor")
         else:  # Message from requestor to reviewers - notify all PMs/reviewers
             # FEATURE: Notify all PM/Admin/PodReviewers about requestor messages
-            # Each reviewer gets their own email notification
             from app.models.request import User
+            from sqlalchemy import or_ as sql_or
 
             logger.info(f"📧 Queuing email to PMs from requestor {user.email}")
-            # Get all users and filter for review roles
-            result = await db.execute(select(User))
-            all_users = result.scalars().all()
-
-            reviewer_roles = {Role.PRODUCT_MANAGER, Role.ADMIN, Role.POD_REVIEWER}
-            for reviewer in all_users:
-                # Send email to all reviewers except the requestor (self-exclusion)
-                if reviewer.email and reviewer.email != user.email:
-                    reviewer_role_set = set(reviewer.roles) if reviewer.roles else set()
-                    if reviewer_role_set & reviewer_roles:  # Intersection check - has at least one reviewer role
-                        logger.info(f"📧 Queuing email to reviewer {reviewer.email}")
-                        task_send_new_message_email.delay(
-                            reviewer.email,
-                            req.reference_id,
-                            req.title,
-                            user.name,
-                            message_preview,
-                            req.submitter_name,
-                            f"{settings.FRONTEND_URL}/requests/{req.id}",
+            reviewer_result = await db.execute(
+                select(User).where(
+                    and_(
+                        User.email != user.email,
+                        sql_or(
+                            User.roles.contains("ProductManager"),
+                            User.roles.contains("Admin"),
+                            User.roles.contains("PodReviewer"),
                         )
+                    )
+                )
+            )
+            for reviewer in reviewer_result.scalars().all():
+                logger.info(f"📧 Queuing email to reviewer {reviewer.email}")
+                task_send_new_message_email.delay(
+                    reviewer.email,
+                    req.reference_id,
+                    req.title,
+                    user.name,
+                    message_preview,
+                    req.submitter_name,
+                    f"{settings.FRONTEND_URL}/requests/{req.id}",
+                )
     except Exception as e:
         logger.exception(f"Failed to queue email: {e}")
 
     jsm_body = f"**{user.name}** ({user.email}):\n\n{payload.body}"
-    task_jsm_add_comment.delay(str(request_id), jsm_body, not is_internal)
-
-    # Sync message to JIRA ticket if it exists
-    if req.jira_ticket_key:
-        task_jira_add_comment.delay(str(request_id), jsm_body)
+    try:
+        task_jsm_add_comment.delay(str(request_id), jsm_body, not is_internal)
+        if req.jira_ticket_key:
+            task_jira_add_comment.delay(str(request_id), jsm_body)
+    except Exception:
+        logger.warning("Failed to queue Jira/JSM comment task — non-fatal", exc_info=True)
 
     # Notify mentioned users if any
     if payload.mentions:

@@ -19,6 +19,10 @@ from app.models.request import Request, RequestStatus, Pod
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
+TERMINAL_STATUSES = [RequestStatus.COMPLETED, RequestStatus.CLOSED]
+AWAITING_STATUSES = [RequestStatus.AWAITING_INFO, RequestStatus.IN_REVIEW]
+CLOSED_STATUSES = [RequestStatus.COMPLETED, RequestStatus.CLOSED, RequestStatus.CANCELLED]
+
 
 def _require_pm_or_reviewer(user: UserClaims) -> UserClaims:
     """Ensure user is PM or Pod Reviewer."""
@@ -49,9 +53,7 @@ async def get_summary(
     cycle_time_result = await db.execute(
         select(func.avg(
             func.extract('epoch', Request.updated_at - Request.created_at) / 86400.0
-        )).select_from(Request).where(Request.status.in_([
-            RequestStatus.COMPLETED, RequestStatus.CLOSED, RequestStatus.CANCELLED
-        ]))
+        )).select_from(Request).where(Request.status.in_(CLOSED_STATUSES))
     )
     cycle_time_avg = cycle_time_result.scalar() or 0
 
@@ -152,9 +154,7 @@ async def get_pod_performance(
 
         completed_result = await db.execute(
             select(func.count()).select_from(Request).where(
-                and_(Request.pod == pod, Request.status.in_([
-                    RequestStatus.COMPLETED, RequestStatus.CLOSED
-                ]))
+                and_(Request.pod == pod, Request.status.in_(TERMINAL_STATUSES))
             )
         )
         completed = completed_result.scalar() or 0
@@ -168,9 +168,7 @@ async def get_pod_performance(
 
         awaiting_result = await db.execute(
             select(func.count()).select_from(Request).where(
-                and_(Request.pod == pod, Request.status.in_([
-                    RequestStatus.AWAITING_INFO, RequestStatus.IN_REVIEW
-                ]))
+                and_(Request.pod == pod, Request.status.in_(AWAITING_STATUSES))
             )
         )
         awaiting = awaiting_result.scalar() or 0
@@ -179,9 +177,7 @@ async def get_pod_performance(
             select(func.avg(
                 func.extract('epoch', Request.updated_at - Request.created_at) / 86400.0
             )).select_from(Request).where(
-                and_(Request.pod == pod, Request.status.in_([
-                    RequestStatus.COMPLETED, RequestStatus.CLOSED
-                ]))
+                and_(Request.pod == pod, Request.status.in_(TERMINAL_STATUSES))
             )
         )
         cycle_time = cycle_result.scalar() or 0
@@ -192,7 +188,7 @@ async def get_pod_performance(
                 and_(
                     Request.pod == pod,
                     Request.updated_at >= week_ago,
-                    Request.status.in_([RequestStatus.COMPLETED, RequestStatus.CLOSED])
+                    Request.status.in_(TERMINAL_STATUSES),
                 )
             )
         )
@@ -225,7 +221,7 @@ async def get_escalations(
     result = await db.execute(
         select(Request).where(
             and_(
-                Request.status.in_([RequestStatus.AWAITING_INFO, RequestStatus.IN_REVIEW]),
+                Request.status.in_(AWAITING_STATUSES),
                 Request.updated_at < threshold_date,
             )
         ).order_by(Request.created_at)

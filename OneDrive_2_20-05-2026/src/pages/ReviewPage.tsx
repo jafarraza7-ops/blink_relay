@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, Navigate, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, ExternalLink, MessageSquare, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,7 @@ import { TypeBadge } from '@/components/request/TypeBadge'
 import { MessageThread } from '@/components/request/MessageThread'
 import { FileAttachment } from '@/components/request/FileAttachment'
 import { RequestTimeline } from '@/components/request/RequestTimeline'
-import { useRequest, useApproveRequest, useRejectRequest, useUpdateStatus, useSendClarification, useRequestTimeline } from '@/hooks/useRequests'
+import { useRequest, useApproveRequest, useRejectRequest, useUpdateStatus, useSendClarification, useRequestTimeline, requestKeys } from '@/hooks/useRequests'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/components/ui/use-toast'
 import { workflowApi } from '@/lib/api'
@@ -49,6 +50,7 @@ export function ReviewPage() {
   const [rejectComment, setRejectComment] = useState('')
   const [clarifyText, setClarifyText] = useState('')
   const [isClaiming, setIsClaiming] = useState(false)
+  const queryClient = useQueryClient()
 
   const isRejecting = newStatus === 'Rejected'
 
@@ -115,8 +117,7 @@ export function ReviewPage() {
     try {
       await workflowApi.claimRequest(id ?? '')
       toast({ title: 'Request claimed', description: 'You are now working on this request.' })
-      // Refetch request to update claimed_by info
-      window.location.reload()
+      void queryClient.invalidateQueries({ queryKey: requestKeys.detail(id ?? '') })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       toast({ title: 'Failed to claim', description: message, variant: 'destructive' })
@@ -130,8 +131,7 @@ export function ReviewPage() {
     try {
       await workflowApi.unclaimRequest(id ?? '')
       toast({ title: 'Claim released', description: 'Request is now available for others.' })
-      // Refetch request
-      window.location.reload()
+      void queryClient.invalidateQueries({ queryKey: requestKeys.detail(id ?? '') })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       toast({ title: 'Failed to release', description: message, variant: 'destructive' })

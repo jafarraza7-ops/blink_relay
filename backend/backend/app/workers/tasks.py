@@ -34,36 +34,13 @@ Tasks overview:
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 
 from app.workers.celery_app import celery_app
+from app.workers.utils import run_async as _run
 
 logger = logging.getLogger(__name__)
-
-
-def _run(coro):
-    """Run an async coroutine from a Celery task (sync or eager context)."""
-    try:
-        asyncio.get_running_loop()
-        running = True
-    except RuntimeError:
-        running = False
-
-    if running:
-        # Called from within a running event loop (eager mode inside FastAPI).
-        # Run in a fresh thread to avoid "This event loop is already running".
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(asyncio.run, coro).result(timeout=30)
-    else:
-        # No running loop — safe to create one directly.
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
 
 
 # ── Pod routing ───────────────────────────────────────────────────────────────
