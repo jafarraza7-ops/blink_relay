@@ -195,31 +195,25 @@ def task_send_claim_notification(self, request_id: str, pm_name: str, pm_email: 
     async def _send():
         import uuid
         from sqlalchemy import select
-        from app.core.database import AsyncSessionLocal
-        from app.models.request import Request, User
+        from app.core.database import task_db_session
+        from app.models.request import Request
         from app.services.email_service import get_claim_notification_template
+        from app.services.email_group_service import get_pm_group_emails
 
-        async with AsyncSessionLocal() as db:
+        async with task_db_session() as db:
             result = await db.execute(select(Request).where(Request.id == uuid.UUID(request_id)))
             req = result.scalar_one_or_none()
-
             if not req:
                 return
 
-            # Get PM group email and send to group distribution list
-            from app.services.email_group_service import get_pm_group_emails
-
-            group_email, individual_pm_emails = await get_pm_group_emails(db)
-
-            # Send to PM group distribution list
+            group_email, _ = await get_pm_group_emails(db)
             if group_email:
                 html_content = get_claim_notification_template(
                     req.reference_id or str(req.id),
                     req.title,
                     pm_name,
-                    req.priority.value
+                    req.priority.value,
                 )
-                # Send to PM group email address
                 await NotificationService().send_email(
                     to=group_email,
                     subject=f"[Blink Relay] {pm_name} is working on {req.reference_id or req.id}",
@@ -245,30 +239,24 @@ def task_send_unclaim_notification(self, request_id: str, pm_name: str):
     async def _send():
         import uuid
         from sqlalchemy import select
-        from app.core.database import AsyncSessionLocal
-        from app.models.request import Request, User
+        from app.core.database import task_db_session
+        from app.models.request import Request
         from app.services.email_service import get_unclaim_notification_template
+        from app.services.email_group_service import get_pm_group_emails
 
-        async with AsyncSessionLocal() as db:
+        async with task_db_session() as db:
             result = await db.execute(select(Request).where(Request.id == uuid.UUID(request_id)))
             req = result.scalar_one_or_none()
-
             if not req:
                 return
 
-            # Get PM group email and send to group distribution list
-            from app.services.email_group_service import get_pm_group_emails
-
-            group_email, individual_pm_emails = await get_pm_group_emails(db)
-
-            # Send to PM group distribution list
+            group_email, _ = await get_pm_group_emails(db)
             if group_email:
                 html_content = get_unclaim_notification_template(
                     req.reference_id or str(req.id),
                     req.title,
-                    pm_name
+                    pm_name,
                 )
-                # Send to PM group email address
                 await NotificationService().send_email(
                     to=group_email,
                     subject=f"[Blink Relay] {req.reference_id or req.id} is now available",
@@ -289,7 +277,7 @@ def task_send_weekly_digest(self):
     Sent every Monday at 9:00 AM UTC.
     """
     async def _send():
-        from app.core.database import db_session
+        from app.core.database import task_db_session as db_session
         from app.models.request import User
         from app.core.security import Role
         from app.services.digest_service import get_weekly_digest_data
