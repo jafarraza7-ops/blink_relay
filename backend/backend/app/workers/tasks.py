@@ -263,7 +263,7 @@ def task_create_jira_ticket(
                     logger.warning("Failed to comment on %s — non-fatal", tp_key, exc_info=True)
 
             # ── Blink Relay audit trail message ───────────────────────────────
-            from app.models.request import Message, MessageType
+            from app.models.request import AuditLog as _AuditLog, Message, MessageType
             audit_body = (
                 f"Implementation ticket **{tp_key}** created in Jira: {tp_url}"
                 + (f"\nLinked to submission ticket **{jsm_key}**: {jsm_url}" if jsm_key else "")
@@ -275,6 +275,14 @@ def task_create_jira_ticket(
                 body=audit_body,
                 is_internal=True,
                 message_type=MessageType.COMMENT,
+            ))
+            db.add(_AuditLog(
+                request_id=req.id,
+                actor_oid="system",
+                actor_email="system@blink-relay",
+                action="jira_ticket_created",
+                new_value=ticket["key"],
+                event_data={"ticket_key": ticket["key"], "ticket_url": ticket["url"]},
             ))
             await db.commit()
 
@@ -485,7 +493,18 @@ def task_create_jsm_ticket(self, request_id: str) -> dict:
                 url = f"{_s.JIRA_BASE_URL.rstrip('/')}/browse/{key}"
                 req.jsm_ticket_key = key
                 req.jsm_ticket_url = url
+                await db.commit()
                 logger.info("Jira ticket %s created for request %s", key, request_id)
+                from app.models.request import AuditLog as _AuditLog
+                db.add(_AuditLog(
+                    request_id=req.id,
+                    actor_oid="system",
+                    actor_email="system@blink-relay",
+                    action="jsm_ticket_created",
+                    new_value=key,
+                    event_data={"ticket_key": key, "ticket_url": url},
+                ))
+                await db.commit()
                 return {"key": key, "url": url}
 
     return _run(_create())

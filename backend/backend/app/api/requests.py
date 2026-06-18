@@ -744,6 +744,8 @@ def _format_timeline_message(action: str, previous_value: str, new_value: str) -
         'clarification_sent': f'Clarification sent - {new_formatted[:80]}...' if len(new_formatted) > 80 else f'Clarification sent - {new_formatted}',
         'claimed': 'Claimed - request was claimed',
         'unclaimed': 'Unclaimed - request was unclaimed',
+        'jsm_ticket_created': f'Submission ticket created in Jira Service Management: {new_value}',
+        'jira_ticket_created': f'Implementation ticket created in Jira: {new_value}',
     }
 
     return action_messages.get(action, f'{action.replace("_", " ").title()} - {new_formatted[:100]}')
@@ -794,7 +796,7 @@ async def get_request_timeline(
     # Add audit log events
     for log in logs:
         # Show all meaningful events including status changes, approvals, and messages
-        if log.action in ["status_change", "approved", "rejected", "info_provided", "request_cancelled", "message_added", "clarification_sent", "claimed", "unclaimed"]:
+        if log.action in ["status_change", "approved", "rejected", "info_provided", "request_cancelled", "message_added", "clarification_sent", "claimed", "unclaimed", "jsm_ticket_created", "jira_ticket_created"]:
             details = _format_timeline_message(log.action, log.previous_value or "", log.new_value or "")
             # Get actor name from User table or use email or default to "System"
             actor_name = "System"

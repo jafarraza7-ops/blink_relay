@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import List, Optional, Tuple
 
 import httpx
 
@@ -12,21 +13,145 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-def _cta_button(url: str, label: str) -> str:
-    return (
-        f'<p><a href="{url}" style="display:inline-block;padding:10px 20px;'
-        f'background:#1d4ed8;color:#fff;text-decoration:none;border-radius:6px">'
-        f'{label}</a></p>'
-    ) if url else ""
+# ── Branded email template helpers ────────────────────────────────────────────
 
+def _render_email(
+    title: str,
+    body_paragraphs: List[str],
+    info_rows: Optional[List[Tuple[str, str]]] = None,
+    cta_url: Optional[str] = None,
+    cta_label: Optional[str] = None,
+    greeting: Optional[str] = None,
+    footer_note: Optional[str] = None,
+    extra_block: Optional[str] = None,
+) -> str:
+    """Render a fully branded Blink Relay email using table-based layout.
 
-def _html_wrap(body: str) -> str:
+    Args:
+        title: Large heading shown below the logo header.
+        body_paragraphs: List of paragraph strings shown in the body.
+        info_rows: Optional list of (label, value) tuples for the info box.
+        cta_url: Optional CTA button URL.
+        cta_label: Optional CTA button label text.
+        greeting: Optional greeting line (e.g. "Hi,"). Omitted if None.
+        footer_note: Optional small-print paragraph above the divider footer.
+        extra_block: Optional raw HTML block inserted after the info box
+                     (used for blockquotes, reviewer messages, etc.).
+    Returns:
+        Complete HTML email string with inline styles.
+    """
+    # Greeting block
+    greeting_html = (
+        f'<p style="font-size:15px;color:#374151;margin:0 0 12px 0">{greeting}</p>'
+        if greeting else ""
+    )
+
+    # Body paragraphs
+    body_html = "".join(
+        f'<p style="font-size:15px;color:#374151;line-height:1.6;margin:0 0 12px 0">{p}</p>'
+        for p in body_paragraphs
+    )
+
+    # Info box
+    info_box_html = ""
+    if info_rows:
+        rows_html = "".join(
+            f"""<tr>
+              <td style="padding:4px 8px 4px 0;vertical-align:top">
+                <span style="color:#6b7280;font-size:14px">{label}:</span>
+              </td>
+              <td style="padding:4px 0">
+                <strong style="font-size:14px;color:#111827">{value}</strong>
+              </td>
+            </tr>"""
+            for label, value in info_rows
+        )
+        info_box_html = f"""
+        <div style="background:#f3f4f6;border-left:4px solid #1d4ed8;border-radius:4px;padding:16px;margin:16px 0">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            {rows_html}
+          </table>
+        </div>"""
+
+    # Extra block (blockquote, etc.)
+    extra_html = extra_block or ""
+
+    # CTA button
+    cta_html = ""
+    if cta_url and cta_label:
+        cta_html = f"""
+        <div style="text-align:center;margin:24px 0">
+          <a href="{cta_url}"
+             style="display:inline-block;background:#1e3a5f;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:9999px;font-weight:600;font-size:15px">{cta_label}</a>
+        </div>"""
+
+    # Footer note
+    footer_note_html = (
+        f'<p style="font-size:13px;color:#6b7280;line-height:1.5;margin:0 0 16px 0">{footer_note}</p>'
+        if footer_note else ""
+    )
+
     return f"""<!DOCTYPE html>
-<html><body style="font-family:Arial,sans-serif;color:#1a1a1a;max-width:600px;margin:0 auto;padding:24px">
-{body}
-<hr style="margin-top:32px;border:none;border-top:1px solid #e5e7eb"/>
-<p style="font-size:12px;color:#6b7280">Blink Relay · Internal Tech Request System</p>
-</body></html>"""
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background-color:#f9fafb;font-family:Arial,Helvetica,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9fafb">
+    <tr>
+      <td align="center" style="padding:32px 16px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:600px">
+
+          <!-- Logo / Header -->
+          <tr>
+            <td style="padding:24px 32px 0 32px">
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle">
+                    <span style="display:inline-block;background:#1d4ed8;border-radius:8px;padding:6px 10px;font-size:18px;line-height:1">&#9889;</span>
+                  </td>
+                  <td style="vertical-align:middle;padding-left:10px">
+                    <span style="font-size:18px;font-weight:700;color:#1e3a5f">Blink Relay</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Title -->
+          <tr>
+            <td style="padding:24px 32px 0 32px">
+              <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0">{title}</h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:20px 32px 0 32px">
+              {greeting_html}
+              {body_html}
+              {info_box_html}
+              {extra_html}
+              {cta_html}
+            </td>
+          </tr>
+
+          <!-- Footer note + divider -->
+          <tr>
+            <td style="padding:16px 32px 32px 32px">
+              {footer_note_html}
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0"/>
+              <p style="font-size:12px;color:#6b7280;margin:4px 0">Blink Relay &bull; Product Intake System</p>
+              <p style="font-size:12px;color:#6b7280;margin:4px 0">This is an automated message. Please do not reply to this email.</p>
+              <p style="font-size:12px;color:#6b7280;margin:4px 0">&copy; 2026 Blink Charging. All rights reserved.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
 
 
 class NotificationService:
@@ -164,13 +289,28 @@ class NotificationService:
             cc_str = f", cc={', '.join(cc) if isinstance(cc, list) else cc}" if cc else ""
             logger.exception(f"send_email error to {recipients_str}{cc_str}: {str(e)} — swallowing to avoid blocking caller")
 
+    # ── Branded notify_* methods ───────────────────────────────────────────────
+
     async def notify_submitted(self, submitter_email: str, title: str, reference_id: str) -> None:
-        subject = f"[Blink Relay] Request received: {reference_id}"
-        body = _html_wrap(f"""
-        <h2>Your request has been received</h2>
-        <p>Thank you for submitting <strong>{title}</strong>.</p>
-        <p>Your reference number is <strong>{reference_id}</strong>. A product manager will review it shortly.</p>
-        """)
+        subject = f"[Blink Relay] Request Submitted Successfully — {reference_id}"
+        body = _render_email(
+            title="Request Submitted Successfully",
+            greeting="Hi,",
+            body_paragraphs=[
+                "Your request has been successfully submitted to Blink Relay and is now in the review queue. "
+                "Our team will review it shortly and keep you updated on the progress.",
+            ],
+            info_rows=[
+                ("Reference ID", reference_id),
+                ("Title", title),
+            ],
+            cta_url=f"{settings.FRONTEND_URL}/requests",
+            cta_label="View Your Request",
+            footer_note=(
+                "You'll receive email updates as your request progresses through the review workflow. "
+                "If you have any questions, please reach out to the Blink team."
+            ),
+        )
         await self.send_email(submitter_email, subject, body)
 
     async def notify_status_change(
@@ -180,12 +320,21 @@ class NotificationService:
         reference_id: str,
         new_status: str,
     ) -> None:
-        subject = f"[Blink Relay] {reference_id} status updated: {new_status}"
-        body = _html_wrap(f"""
-        <h2>Request status updated</h2>
-        <p>Your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) has been updated.</p>
-        <p><strong>New status:</strong> {new_status}</p>
-        """)
+        subject = f"[Blink Relay] Status Updated — {reference_id}"
+        body = _render_email(
+            title="Request Status Updated",
+            greeting="Hi,",
+            body_paragraphs=[
+                f"Your request status has been updated to <strong>{new_status}</strong>.",
+            ],
+            info_rows=[
+                ("Reference ID", reference_id),
+                ("Title", title),
+                ("New Status", new_status),
+            ],
+            cta_url=f"{settings.FRONTEND_URL}/requests",
+            cta_label="View Your Request",
+        )
         await self.send_email(submitter_email, subject, body)
 
     async def notify_awaiting_info(
@@ -196,16 +345,28 @@ class NotificationService:
         reviewer_message: str,
         portal_link: str = "",
     ) -> None:
-        link_html = _cta_button(portal_link, "Respond to this request")
-        subject = f"[Blink Relay] {reference_id} — additional information needed"
-        body = _html_wrap(f"""
-        <h2>Additional information required</h2>
-        <p>Your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) needs more details.</p>
-        <p style="font-weight:600">The reviewer asked:</p>
-        <blockquote style="border-left:4px solid #e5e7eb;padding-left:12px;color:#374151">{reviewer_message}</blockquote>
-        {link_html}
-        <p style="color:#6b7280;font-size:13px">Please provide the requested information so the review can continue.</p>
-        """)
+        subject = f"[Blink Relay] Additional Information Needed — {reference_id}"
+        reviewer_block = (
+            f'<div style="background:#f3f4f6;border-left:4px solid #6b7280;border-radius:4px;'
+            f'padding:16px;margin:16px 0;font-size:14px;color:#374151;line-height:1.6">'
+            f'<strong style="display:block;margin-bottom:8px;color:#111827">Message from reviewer:</strong>'
+            f'{reviewer_message}</div>'
+        )
+        body = _render_email(
+            title="Additional Information Needed",
+            greeting="Hi,",
+            body_paragraphs=[
+                "Your request requires additional information before we can proceed with the review.",
+            ],
+            info_rows=[
+                ("Reference ID", reference_id),
+                ("Title", title),
+            ],
+            extra_block=reviewer_block,
+            cta_url=portal_link or f"{settings.FRONTEND_URL}/requests",
+            cta_label="Respond to This Request",
+            footer_note="Please provide the requested information so the review can continue.",
+        )
         await self.send_email(submitter_email, subject, body)
 
     async def notify_clarification_received(
@@ -215,13 +376,21 @@ class NotificationService:
         reference_id: str,
         portal_link: str = "",
     ) -> None:
-        link_html = _cta_button(portal_link, "View response")
-        subject = f"[Blink Relay] {reference_id} — requestor has responded"
-        body = _html_wrap(f"""
-        <h2>Requestor has responded</h2>
-        <p><strong>{title}</strong> (ref: <strong>{reference_id}</strong>) has received additional information from the requestor.</p>
-        {link_html}
-        """)
+        subject = f"[Blink Relay] Requestor Has Responded — {reference_id}"
+        body = _render_email(
+            title="Requestor Has Responded",
+            greeting="Hi,",
+            body_paragraphs=[
+                f"The requestor has provided additional information for <strong>{title}</strong>. "
+                "Please review their response and continue the review process.",
+            ],
+            info_rows=[
+                ("Reference ID", reference_id),
+                ("Title", title),
+            ],
+            cta_url=portal_link or f"{settings.FRONTEND_URL}/requests",
+            cta_label="View Response",
+        )
         await self.send_email(pm_email, subject, body)
 
     async def notify_approved(
@@ -231,13 +400,25 @@ class NotificationService:
         reference_id: str,
         jira_url: str | None,
     ) -> None:
-        jira_link = _cta_button(jira_url or "", "View Jira ticket")
-        subject = f"[Blink Relay] {reference_id} approved"
-        body = _html_wrap(f"""
-        <h2>Request approved</h2>
-        <p>Your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) has been approved and scheduled for development.</p>
-        {jira_link}
-        """)
+        subject = f"[Blink Relay] Request Approved — {reference_id}"
+        info_rows: List[Tuple[str, str]] = [
+            ("Reference ID", reference_id),
+            ("Title", title),
+        ]
+        if jira_url:
+            info_rows.append(("Jira Ticket", f'<a href="{jira_url}" style="color:#1d4ed8">{jira_url}</a>'))
+        body = _render_email(
+            title="Request Approved",
+            greeting="Hi,",
+            body_paragraphs=[
+                "Great news! Your request has been reviewed and approved. "
+                "Our development team will begin working on it shortly.",
+            ],
+            info_rows=info_rows,
+            cta_url=jira_url or f"{settings.FRONTEND_URL}/requests",
+            cta_label="View Jira Ticket" if jira_url else "View Your Request",
+            footer_note="You'll receive further updates as implementation progresses.",
+        )
         await self.send_email(submitter_email, subject, body)
 
     async def notify_in_progress(
@@ -247,13 +428,21 @@ class NotificationService:
         reference_id: str,
         jira_url: str | None = None,
     ) -> None:
-        jira_link = _cta_button(jira_url or "", "View Jira ticket")
-        subject = f"[Blink Relay] {reference_id} — implementation started"
-        body = _html_wrap(f"""
-        <h2>Implementation in progress</h2>
-        <p>Great news! Work has started on your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>).</p>
-        {jira_link}
-        """)
+        subject = f"[Blink Relay] Implementation Started — {reference_id}"
+        body = _render_email(
+            title="Implementation In Progress",
+            greeting="Hi,",
+            body_paragraphs=[
+                "Work has begun on your approved request. Our development team is actively working on it.",
+            ],
+            info_rows=[
+                ("Reference ID", reference_id),
+                ("Title", title),
+            ],
+            cta_url=jira_url or f"{settings.FRONTEND_URL}/requests",
+            cta_label="View Jira Ticket" if jira_url else "View Your Request",
+            footer_note="You'll receive an update once implementation is complete.",
+        )
         await self.send_email(submitter_email, subject, body)
 
     async def notify_completed(
@@ -264,16 +453,21 @@ class NotificationService:
         jira_url: str | None = None,
         jsm_url: str | None = None,
     ) -> None:
-        jira_link = _cta_button(jira_url or "", "View implementation ticket")
-        jsm_link = _cta_button(jsm_url or "", "View service request")
-        subject = f"[Blink Relay] {reference_id} — implementation complete"
-        body = _html_wrap(f"""
-        <h2>Implementation complete</h2>
-        <p>The implementation for your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) has been completed.</p>
-        {jira_link}
-        {jsm_link}
-        <p style="color:#6b7280;font-size:13px">Your service request will be resolved shortly.</p>
-        """)
+        subject = f"[Blink Relay] Request Completed — {reference_id}"
+        body = _render_email(
+            title="Implementation Complete",
+            greeting="Hi,",
+            body_paragraphs=[
+                "We are pleased to inform you that the implementation of your request has been completed successfully.",
+            ],
+            info_rows=[
+                ("Reference ID", reference_id),
+                ("Title", title),
+            ],
+            cta_url=jira_url or f"{settings.FRONTEND_URL}/requests",
+            cta_label="View Implementation Ticket" if jira_url else "View Your Request",
+            footer_note="Thank you for using Blink Relay. If you have further needs, feel free to submit a new request.",
+        )
         await self.send_email(submitter_email, subject, body)
 
     async def notify_rejected(
@@ -284,14 +478,32 @@ class NotificationService:
         reason: str,
         comment: str | None,
     ) -> None:
-        comment_block = f"<p><em>{comment}</em></p>" if comment else ""
-        subject = f"[Blink Relay] {reference_id} not approved"
-        body = _html_wrap(f"""
-        <h2>Request not approved</h2>
-        <p>Your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) was not approved.</p>
-        <p><strong>Reason:</strong> {reason}</p>
-        {comment_block}
-        """)
+        subject = f"[Blink Relay] Request Not Approved — {reference_id}"
+        comment_block = ""
+        if comment:
+            comment_block = (
+                f'<div style="background:#fef9f0;border-left:4px solid #f59e0b;border-radius:4px;'
+                f'padding:16px;margin:16px 0;font-size:14px;color:#374151;line-height:1.6">'
+                f'<strong style="display:block;margin-bottom:8px;color:#111827">Reviewer comment:</strong>'
+                f'{comment}</div>'
+            )
+        body = _render_email(
+            title="Request Not Approved",
+            greeting="Hi,",
+            body_paragraphs=[
+                "Thank you for your submission. After review, we are unable to approve this request at this time.",
+            ],
+            info_rows=[
+                ("Reference ID", reference_id),
+                ("Title", title),
+                ("Reason", reason),
+            ],
+            extra_block=comment_block,
+            footer_note=(
+                "If you have questions or would like to resubmit with more information, "
+                "please reach out to your product manager."
+            ),
+        )
         await self.send_email(submitter_email, subject, body)
 
     async def notify_closed(
@@ -302,16 +514,21 @@ class NotificationService:
         jira_url: str | None = None,
         jsm_url: str | None = None,
     ) -> None:
-        jira_link = f'<p><a href="{jira_url}">View implementation ticket</a></p>' if jira_url else ""
-        jsm_link = f'<p><a href="{jsm_url}">View service request</a></p>' if jsm_url else ""
-        subject = f"[Blink Relay] {reference_id} — request closed"
-        body = _html_wrap(f"""
-        <h2>Request closed</h2>
-        <p>Your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) has been closed.</p>
-        {jira_link}
-        {jsm_link}
-        <p style="color:#6b7280;font-size:13px">If you believe this was closed in error, please open a new request.</p>
-        """)
+        subject = f"[Blink Relay] Request Closed — {reference_id}"
+        body = _render_email(
+            title="Request Closed",
+            greeting="Hi,",
+            body_paragraphs=[
+                f"Your request <strong>{title}</strong> has been closed.",
+            ],
+            info_rows=[
+                ("Reference ID", reference_id),
+                ("Title", title),
+            ],
+            cta_url=jira_url or f"{settings.FRONTEND_URL}/requests",
+            cta_label="View Implementation Ticket" if jira_url else "View Your Request",
+            footer_note="If you believe this was closed in error, please open a new request.",
+        )
         await self.send_email(submitter_email, subject, body)
 
     async def notify_jsm_closed(
@@ -325,24 +542,40 @@ class NotificationService:
         jira_ticket_key: str | None = None,
         jira_ticket_url: str | None = None,
     ) -> None:
-        jsm_link = (
-            f'<p><a href="{jsm_ticket_url}">View service request {jsm_ticket_key}</a></p>'
-            if jsm_ticket_url else f"<p>Service request: {jsm_ticket_key}</p>"
+        subject = f"[Blink Relay] Service Request Resolved — {reference_id}"
+        resolution_block = (
+            f'<div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:4px;'
+            f'padding:16px;margin:16px 0;font-size:14px;color:#374151;line-height:1.6">'
+            f'<strong style="display:block;margin-bottom:8px;color:#111827">Resolution:</strong>'
+            f'{resolution}</div>'
         )
-        jira_link = (
-            f'<p><a href="{jira_ticket_url}">Implementation ticket {jira_ticket_key}</a></p>'
-            if jira_ticket_url and jira_ticket_key else ""
+        info_rows: List[Tuple[str, str]] = [
+            ("Reference ID", reference_id),
+            ("Title", title),
+        ]
+        if jsm_ticket_key:
+            jsm_display = (
+                f'<a href="{jsm_ticket_url}" style="color:#1d4ed8">{jsm_ticket_key}</a>'
+                if jsm_ticket_url else jsm_ticket_key
+            )
+            info_rows.append(("Service Request", jsm_display))
+        if jira_ticket_key and jira_ticket_url:
+            info_rows.append((
+                "Implementation Ticket",
+                f'<a href="{jira_ticket_url}" style="color:#1d4ed8">{jira_ticket_key}</a>',
+            ))
+        body = _render_email(
+            title="Your Service Request Has Been Resolved",
+            greeting="Hi,",
+            body_paragraphs=[
+                f"Your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) is now closed.",
+            ],
+            info_rows=info_rows,
+            extra_block=resolution_block,
+            cta_url=jsm_ticket_url or f"{settings.FRONTEND_URL}/requests",
+            cta_label="View Service Request",
+            footer_note="If you believe this was closed in error, please open a new request.",
         )
-        subject = f"[Blink Relay] {reference_id} — service request resolved"
-        body = _html_wrap(f"""
-        <h2>Your service request has been resolved</h2>
-        <p>Your request <strong>{title}</strong> (ref: <strong>{reference_id}</strong>) is now closed.</p>
-        <p><strong>Resolution:</strong></p>
-        <blockquote style="border-left:4px solid #16a34a;padding-left:12px;color:#374151">{resolution}</blockquote>
-        {jsm_link}
-        {jira_link}
-        <p>If you believe this was closed in error, reply to this email or open a new request.</p>
-        """)
         await self.send_email(submitter_email, subject, body)
 
     async def send_teams_notification(self, webhook_url: str, message: dict) -> None:

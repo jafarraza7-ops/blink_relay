@@ -35,6 +35,10 @@ export function RequestTimeline({ events }: { events: TimelineEvent[] }) {
         return <AlertCircle className="h-5 w-5 text-gray-500" />
       case 'status_change':
         return <FileCheck className="h-5 w-5 text-purple-500" />
+      case 'jsm_ticket_created':
+        return <FileCheck className="h-5 w-5 text-blue-500" />
+      case 'jira_ticket_created':
+        return <CheckCircle2 className="h-5 w-5 text-indigo-500" />
       default:
         return <Clock className="h-5 w-5 text-gray-500" />
     }
@@ -54,6 +58,10 @@ export function RequestTimeline({ events }: { events: TimelineEvent[] }) {
         return 'Request Cancelled'
       case 'status_change':
         return 'Status Changed'
+      case 'jsm_ticket_created':
+        return 'Submission Ticket Created'
+      case 'jira_ticket_created':
+        return 'Implementation Ticket Created'
       default:
         return action.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
     }
