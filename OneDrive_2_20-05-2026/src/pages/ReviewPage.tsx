@@ -162,12 +162,12 @@ export function ReviewPage() {
         </Button>
       </div>
 
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
+      <div className="flex items-start gap-3">
+        <div className="space-y-1 min-w-0">
           <h1 className="text-2xl font-bold">{req.title}</h1>
           {req.reference_id && <p className="font-mono text-sm text-muted-foreground">{req.reference_id}</p>}
         </div>
-        <StatusBadge status={req.status} className="shrink-0 text-sm px-3 py-1" />
+        <StatusBadge status={req.status} className="shrink-0 text-sm px-3 py-1 mt-1" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
