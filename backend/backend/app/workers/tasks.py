@@ -81,7 +81,7 @@ def route_request_to_pod(self, request_id: str) -> dict:
     Uses keyword/ML scoring; only commits the result when confidence >= 65%
     to avoid mis-routing requests where the business problem is ambiguous.
     """
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Pod, Request
     from app.services.pod_routing_service import PodRoutingService
 
@@ -147,7 +147,7 @@ def task_create_jira_ticket(
       - All stored attachments are synced to both tickets.
     """
     from app.core.config import get_settings as _get_settings
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Request
     from app.services.pod_routing_service import PodRoutingService
 
@@ -279,7 +279,7 @@ def task_create_jira_ticket(
 def task_jira_add_comment(self, request_id: str, body: str) -> dict:
     """Add a comment to the Jira ticket linked to a Blink Relay request."""
     from app.core.config import get_settings as _gs
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Request
 
     async def _comment():
@@ -329,7 +329,7 @@ def task_sync_attachments(
     from sqlalchemy import select
 
     from app.core.config import get_settings as _gs
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Attachment, Request
     from app.services.jira_service import JiraService
     from app.services.storage_service import StorageService
@@ -394,7 +394,7 @@ def task_sync_attachments(
 )
 def task_create_jsm_ticket(self, request_id: str) -> dict:
     """Create a JSM customer-facing ticket for the given Blink Relay request."""
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Request
     from app.services.jsm_service import JsmService
 
@@ -486,7 +486,7 @@ def task_jsm_add_comment(self, request_id: str, body: str, public: bool = True) 
     return {"skipped": True}
     # Dead code below kept for future JSM portal integration:
 
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Request
     from app.services.jsm_service import JsmService
 
@@ -531,7 +531,7 @@ def task_close_jsm_ticket(self, request_id: str, resolution_comment: str) -> dic
     """
     from datetime import datetime, timezone
 
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Request
     from app.services.jsm_service import JsmService
     from app.services.notification_service import NotificationService
@@ -605,7 +605,7 @@ def task_send_status_notification(self, request_id: str) -> None:
     notify_approved, etc.) for tailored email copy. A Microsoft Teams
     notification is also sent to the pod's webhook if one is configured.
     """
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Request, RequestStatus
     from app.services.notification_service import NotificationService
     from app.services.pod_routing_service import PodRoutingService
@@ -677,7 +677,7 @@ def sync_jira_status(self, request_id: str) -> dict:
     Note: this mapping includes "To Do" → Approved, unlike the webhook handler,
     because polling runs after the ticket already exists.
     """
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import AuditLog, Request, RequestStatus
     from app.services.jira_service import JiraService
 
@@ -745,7 +745,7 @@ def task_send_email(self, to: str, subject: str, body_html: str) -> None:
 def task_send_clarification_email(self, request_id: str, question_body: str) -> None:
     """Email the requestor when a PM sends a clarification question."""
     from app.core.config import get_settings as _gs
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Request
     from app.services.notification_service import NotificationService
 
@@ -778,7 +778,7 @@ def task_send_clarification_email(self, request_id: str, question_body: str) -> 
 def task_notify_pm_clarification_response(self, request_id: str) -> None:
     """Email the PM who last sent a clarification question when the requestor responds."""
     from app.core.config import get_settings as _gs
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Message, MessageType, Request
     from app.services.notification_service import NotificationService
 
@@ -829,7 +829,7 @@ def task_send_escalation_digest(self) -> dict:
 
     Scheduled to run daily at 9 AM.
     """
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.services.escalation_service import get_escalation_summary
     from app.services.email_group_service import get_pm_group_emails
     from app.services.notification_service import NotificationService
@@ -921,7 +921,7 @@ def task_send_72hr_no_action_reminder(self) -> dict:
     from sqlalchemy import and_, or_, select
 
     from app.core.config import get_settings as _gs
-    from app.core.database import db_session
+    from app.core.database import task_db_session as db_session
     from app.models.request import Request, RequestStatus, User
     from app.services.notification_service import NotificationService
 

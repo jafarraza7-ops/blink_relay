@@ -65,3 +65,37 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+@asynccontextmanager
+async def task_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Context manager for Celery tasks running in their own thread/event loop.
+
+    Creates a fresh engine bound to the current event loop so asyncpg connections
+    are never shared with the FastAPI event loop (which would cause
+    'attached to a different loop' / 'unknown protocol state' errors in eager mode).
+    """
+    _settings = get_settings()
+    _task_engine = create_async_engine(
+        _settings.DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=1,
+        max_overflow=0,
+    )
+    _task_session = async_sessionmaker(
+        bind=_task_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
+    try:
+        async with _task_session() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+    finally:
+        await _task_engine.dispose()
