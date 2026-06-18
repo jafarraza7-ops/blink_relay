@@ -203,7 +203,7 @@ export function PMSummaryPage() {
             [],
           ]
         : []),
-      ['POD PERFORMANCE'],
+      ['TEAM PERFORMANCE'],
       ['Pod', 'Total', 'Completed', 'Completion %', 'In Progress', 'Cycle Time (days)', 'Velocity/Week'],
       ...Object.entries(podPerf || {}).map(([pod, perf]) => [
         pod,
@@ -441,10 +441,10 @@ export function PMSummaryPage() {
         </Card>
       </div>
 
-      {/* Pod Performance */}
+      {/* Team Performance */}
       <Card>
         <CardHeader>
-          <CardTitle>Pod Performance</CardTitle>
+          <CardTitle>Team Performance</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
