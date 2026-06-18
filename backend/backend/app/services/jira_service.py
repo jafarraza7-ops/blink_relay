@@ -214,6 +214,11 @@ class JiraService:
             "issuetype": {"name": issue_type},
             "labels": (labels or []) + ["blink-relay"],
         }
+        # TP project requires an explicit assignee (unassigned issues are off).
+        # Use the provided account ID, fall back to the configured default.
+        assignee = ({"accountId": assignee_account_id} if assignee_account_id else self._assignee_field())
+        if assignee:
+            fields["assignee"] = assignee
         return fields
 
     async def create_epic(
