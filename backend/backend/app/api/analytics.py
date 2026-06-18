@@ -48,7 +48,7 @@ async def get_summary(
 
     cycle_time_result = await db.execute(
         select(func.avg(
-            func.julianday(Request.updated_at) - func.julianday(Request.created_at)
+            func.extract('epoch', Request.updated_at - Request.created_at) / 86400.0
         )).select_from(Request).where(Request.status.in_([
             RequestStatus.COMPLETED, RequestStatus.CLOSED, RequestStatus.CANCELLED
         ]))
@@ -177,7 +177,7 @@ async def get_pod_performance(
 
         cycle_result = await db.execute(
             select(func.avg(
-                func.julianday(Request.updated_at) - func.julianday(Request.created_at)
+                func.extract('epoch', Request.updated_at - Request.created_at) / 86400.0
             )).select_from(Request).where(
                 and_(Request.pod == pod, Request.status.in_([
                     RequestStatus.COMPLETED, RequestStatus.CLOSED
