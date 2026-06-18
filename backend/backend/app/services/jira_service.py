@@ -227,7 +227,7 @@ class JiraService:
         assignee_account_id: str | None = None,
     ) -> dict:
         fields = self._build_issue_fields(
-            project_key, title, description_adf, "Task", priority, labels, component, assignee_account_id
+            project_key, title, description_adf, "Story", priority, labels, component, assignee_account_id
         )
         return await self._post_issue({"fields": fields})
 
@@ -242,7 +242,7 @@ class JiraService:
         assignee_account_id: str | None = None,
     ) -> dict:
         fields = self._build_issue_fields(
-            project_key, title, description_adf, "Task", priority, labels, component, assignee_account_id
+            project_key, title, description_adf, "Bug", priority, labels, component, assignee_account_id
         )
         return await self._post_issue({"fields": fields})
 

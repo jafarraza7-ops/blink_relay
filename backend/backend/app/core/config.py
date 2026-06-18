@@ -84,12 +84,12 @@ class Settings(BaseSettings):
     JIRA_API_TOKEN: str = ""
     JIRA_WEBHOOK_SECRET: str = ""
     JIRA_DEFAULT_ASSIGNEE_ACCOUNT_ID: str = ""
-    JIRA_PROJECT_CHARGER: str = "REL"
-    JIRA_PROJECT_DRIVER: str = "REL"
-    JIRA_PROJECT_REVENUE: str = "REL"
-    JIRA_PROJECT_DATA: str = "REL"
-    JIRA_PROJECT_DEVOPS: str = "REL"
-    JIRA_PROJECT_DENALI: str = "REL"
+    JIRA_PROJECT_CHARGER: str = "TP"
+    JIRA_PROJECT_DRIVER: str = "TP"
+    JIRA_PROJECT_REVENUE: str = "TP"
+    JIRA_PROJECT_DATA: str = "TP"
+    JIRA_PROJECT_DEVOPS: str = "TP"
+    JIRA_PROJECT_DENALI: str = "TP"
 
     # ── Jira Service Management (JSM) ─────────────────────────────────────────
     # Service desk that holds the customer-facing ticket for every Blink Relay
