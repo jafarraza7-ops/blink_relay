@@ -17,11 +17,45 @@ else
   sleep 2
 fi
 
-# ── Backend ───────────────────────────────────────────────────────────────────
+# ── Redis ─────────────────────────────────────────────────────────────────────
+if redis-cli ping &>/dev/null; then
+  echo "[redis]    already running"
+else
+  echo "[redis]    starting..."
+  redis-server --daemonize yes --logfile /tmp/blink_redis.log --port 6379
+  sleep 1
+  if redis-cli ping &>/dev/null; then
+    echo "[redis]    ready"
+  else
+    echo "[redis]    ERROR: could not start Redis. Install it with: brew install redis"
+    exit 1
+  fi
+fi
+
+# ── Backend (FastAPI) ─────────────────────────────────────────────────────────
 echo "[backend]  starting on http://localhost:8001 ..."
 cd "$BACKEND"
 .venv311/bin/python -m uvicorn main:app --port 8001 > /tmp/blink_backend.log 2>&1 &
 BACKEND_PID=$!
+
+# ── Celery Worker ─────────────────────────────────────────────────────────────
+echo "[worker]   starting Celery worker..."
+cd "$BACKEND"
+.venv311/bin/celery -A app.workers.celery_app worker \
+  --loglevel=info \
+  -Q default,notifications,jira,reminders \
+  > /tmp/blink_worker.log 2>&1 &
+WORKER_PID=$!
+
+# ── Celery Beat ───────────────────────────────────────────────────────────────
+echo "[beat]     starting Celery beat scheduler..."
+cd "$BACKEND"
+.venv311/bin/celery -A app.workers.celery_app beat \
+  --loglevel=info \
+  --pidfile=/tmp/blink_celerybeat.pid \
+  --schedule=/tmp/blink_celerybeat.db \
+  > /tmp/blink_beat.log 2>&1 &
+BEAT_PID=$!
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 echo "[frontend] starting on http://localhost:5173 ..."
@@ -50,10 +84,21 @@ for i in $(seq 1 15); do
   sleep 1
 done
 
+# ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "Blink Relay is running."
 echo "  Backend:  http://localhost:8001  (API docs: http://localhost:8001/docs)"
 echo "  Frontend: http://$PORT"
+echo "  Worker:   PID $WORKER_PID  (consumes task queues)"
+echo "  Beat:     PID $BEAT_PID   (fires scheduled jobs)"
 echo ""
-echo "Logs: /tmp/blink_backend.log  /tmp/blink_frontend.log"
-echo "Stop: kill $BACKEND_PID $FRONTEND_PID && $PG_BIN/pg_ctl -D $PG_DATA stop"
+echo "Logs:"
+echo "  /tmp/blink_backend.log"
+echo "  /tmp/blink_worker.log"
+echo "  /tmp/blink_beat.log"
+echo "  /tmp/blink_frontend.log"
+echo "  /tmp/blink_redis.log"
+echo ""
+echo "Stop all:  kill $BACKEND_PID $WORKER_PID $BEAT_PID $FRONTEND_PID"
+echo "           redis-cli shutdown"
+echo "           $PG_BIN/pg_ctl -D $PG_DATA stop"
