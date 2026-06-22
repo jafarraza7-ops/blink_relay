@@ -247,7 +247,7 @@ export function ReviewPage() {
             )}
 
             {/* Approve */}
-            {!['Approved', 'Rejected', 'Completed', 'Closed', 'Cancelled'].includes(req.status) && (
+            {!['Approved', 'Rejected', 'Completed', 'Closed', 'Cancelled', 'InProgress'].includes(req.status) && (
               <Card>
                 <CardHeader><CardTitle className="text-base text-green-700">Approve</CardTitle></CardHeader>
                 <CardContent>
