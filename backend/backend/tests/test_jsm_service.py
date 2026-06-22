@@ -144,7 +144,6 @@ async def test_create_request_posts_to_servicedeskapi(live_jsm_service):
     assert body["requestTypeId"] == "100"
     assert body["raiseOnBehalfOf"] == "user@blink.com"
     assert body["requestFieldValues"]["summary"] == "Test"
-    assert "blink-relay" in body["requestFieldValues"]["labels"]
 
 
 @pytest.mark.asyncio

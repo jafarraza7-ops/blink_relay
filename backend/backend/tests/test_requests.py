@@ -20,7 +20,7 @@ async def test_create_request_anonymous(anon_client: AsyncClient, sample_request
     resp = await anon_client.post("/api/requests", json=sample_request_payload)
     assert resp.status_code == 201
     data = resp.json()
-    assert data["submitter_email"] == "unknown@external"
+    assert data["submitter_email"] == "intake-system@blinkcharging.com"
 
 
 @pytest.mark.asyncio
@@ -114,7 +114,7 @@ async def test_respond_wrong_status_rejected(anon_client: AsyncClient, sample_re
 async def test_submitter_can_edit_own_request(
     authed_client: AsyncClient, sample_request_payload
 ):
-    """The submitter may edit the title, severity, etc. while the request is
+    """The submitter may edit the title, priority, etc. while the request is
     still under review."""
     create = await authed_client.post("/api/requests", json=sample_request_payload)
     assert create.status_code == 201
@@ -122,12 +122,12 @@ async def test_submitter_can_edit_own_request(
 
     resp = await authed_client.patch(
         f"/api/requests/{request_id}",
-        json={"title": "Updated title", "severity": "High"},
+        json={"title": "Updated title", "priority": "High"},
     )
     assert resp.status_code == 200
     body = resp.json()
     assert body["title"] == "Updated title"
-    assert body["severity"] == "High"
+    assert body["priority"] == "High"
     # Untouched fields stay the same
     assert body["pod"] == sample_request_payload["pod"]
 
@@ -184,10 +184,10 @@ async def test_pm_can_edit_any_request(
 
     resp = await pm_client.patch(
         f"/api/requests/{request_id}",
-        json={"severity": "Critical"},
+        json={"priority": "Critical"},
     )
     assert resp.status_code == 200
-    assert resp.json()["severity"] == "Critical"
+    assert resp.json()["priority"] == "Critical"
 
 
 @pytest.mark.asyncio
@@ -246,7 +246,7 @@ async def test_edit_writes_audit_log(
 
     await authed_client.patch(
         f"/api/requests/{request_id}",
-        json={"title": "New title", "severity": "Critical"},
+        json={"title": "New title", "priority": "Critical"},
     )
 
     result = await db_session.execute(
@@ -254,7 +254,7 @@ async def test_edit_writes_audit_log(
     )
     actions = [log.action for log in result.scalars().all()]
     assert "edit:title" in actions
-    assert "edit:severity" in actions
+    assert "edit:priority" in actions
 
 
 @pytest.mark.asyncio

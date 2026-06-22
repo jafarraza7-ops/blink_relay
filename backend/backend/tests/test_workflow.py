@@ -10,14 +10,14 @@ from app.models.request import Request, RequestStatus
 async def _create_request_in_db(db: AsyncSession, submitter_oid: str = "test-oid") -> Request:
     """Create a request directly in DB to avoid client-sharing issues."""
     import uuid
-    from app.models.request import RequestType, Pod, Severity
+    from app.models.request import RequestType, Pod, Priority
 
     req = Request(
         id=uuid.uuid4(),
         title="Test request for workflow",
         request_type=RequestType.FEATURE,
         pod=Pod.DRIVER,
-        severity=Severity.MEDIUM,
+        priority=Priority.MEDIUM,
         status=RequestStatus.SUBMITTED,
         business_problem="Testing the workflow state machine",
         affected_area="Driver app",
@@ -74,8 +74,10 @@ async def test_reject_request(pm_client: AsyncClient, db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_invalid_status_transition_approve(pm_client: AsyncClient, db_session: AsyncSession):
     req = await _create_request_in_db(db_session)
-    # Submitted → Approved is not a valid direct transition
-
+    # First approval succeeds (Submitted → Approved is valid)
+    resp = await pm_client.post(f"/api/requests/{req.id}/approve", json={})
+    assert resp.status_code == 200
+    # Second approval is invalid (Approved → Approved is not in ALLOWED_TRANSITIONS)
     resp = await pm_client.post(f"/api/requests/{req.id}/approve", json={})
     assert resp.status_code == 409
 

@@ -5,7 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.request import (
-    Pod, Request, RequestStatus, RequestType, )
+    Pod, Priority, Request, RequestStatus, RequestType, )
 
 
 async def _make_request(db: AsyncSession) -> Request:
@@ -15,12 +15,12 @@ async def _make_request(db: AsyncSession) -> Request:
         title="Thread test request",
         request_type=RequestType.FEATURE,
         pod=Pod.DATA,
-        severity=Severity.LOW,
+        priority=Priority.LOW,
         status=RequestStatus.SUBMITTED,
         business_problem="Testing message thread",
         affected_area="Dashboard",
-        submitter_oid="thread-oid",
-        submitter_email="thread@test.com",
+        submitter_oid="test-oid-1234",
+        submitter_email="testuser@blinkcharging.com",
         submitter_name="Thread Tester",
     )
     db.add(req)
@@ -44,9 +44,9 @@ async def test_post_message(authed_client: AsyncClient, db_session: AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_post_internal_message(authed_client: AsyncClient, db_session: AsyncSession):
+async def test_post_internal_message(pm_client: AsyncClient, db_session: AsyncSession):
     req = await _make_request(db_session)
-    resp = await authed_client.post(
+    resp = await pm_client.post(
         f"/api/requests/{req.id}/messages",
         json={"body": "Internal note for review team.", "is_internal": True},
     )

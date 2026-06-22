@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.models.request import Attachment, Pod, Request, RequestStatus, RequestType
+from app.models.request import Attachment, Pod, Priority, Request, RequestStatus, RequestType
 
 
 async def _make_request(db: AsyncSession) -> Request:
@@ -16,7 +16,7 @@ async def _make_request(db: AsyncSession) -> Request:
         title="Files test",
         request_type=RequestType.FEATURE,
         pod=Pod.DATA,
-        severity=Severity.LOW,
+        priority=Priority.LOW,
         status=RequestStatus.SUBMITTED,
         business_problem="File testing",
         affected_area="Data pipeline",
@@ -143,7 +143,7 @@ async def test_delete_file_as_uploader(authed_client: AsyncClient, db_session: A
         content_type="application/pdf",
         blob_name=f"{req.id}/test.pdf",
         size_bytes=1024,
-        uploaded_by_oid="files-oid",  # Same as submitter (authed_client)
+        uploaded_by_oid="test-oid-1234",  # matches authed_client OID
     )
     db_session.add(attachment)
     await db_session.commit()
@@ -229,7 +229,7 @@ async def test_delete_file_storage_error_graceful(authed_client: AsyncClient, db
         content_type="application/pdf",
         blob_name=f"{req.id}/test.pdf",
         size_bytes=1024,
-        uploaded_by_oid="files-oid",
+        uploaded_by_oid="test-oid-1234",  # matches authed_client OID
     )
     db_session.add(attachment)
     await db_session.commit()
@@ -263,7 +263,7 @@ async def test_delete_file_creates_audit_log(authed_client: AsyncClient, db_sess
         content_type="application/pdf",
         blob_name=f"{req.id}/test.pdf",
         size_bytes=1024,
-        uploaded_by_oid="files-oid",
+        uploaded_by_oid="test-oid-1234",  # matches authed_client OID
     )
     db_session.add(attachment)
     await db_session.commit()

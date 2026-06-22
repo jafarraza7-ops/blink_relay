@@ -191,20 +191,37 @@ def send_email(args: argparse.Namespace, html: str, total_pct: float) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--xml", required=True, help="Path to coverage.xml")
-    parser.add_argument("--smtp-host", required=True)
+    parser.add_argument("--smtp-host", default="")
     parser.add_argument("--smtp-port", default=587)
-    parser.add_argument("--smtp-user", required=True)
-    parser.add_argument("--smtp-pass", required=True)
+    parser.add_argument("--smtp-user", default="")
+    parser.add_argument("--smtp-pass", default="")
     parser.add_argument("--smtp-from", default="")
-    parser.add_argument("--to", required=True)
+    parser.add_argument("--to", default="pms@blinkcharging.com")
     parser.add_argument("--run-url", default="")
     parser.add_argument("--branch", default="main")
+    parser.add_argument("--dry-run", action="store_true", help="Print HTML to stdout instead of sending")
     args = parser.parse_args()
 
     data = parse_coverage(args.xml)
     date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
     html = build_html(data, args.branch, args.run_url, date_str)
-    send_email(args, html, data["total_pct"])
+
+    if args.dry_run:
+        print(f"\n{'='*60}")
+        print(f"  Subject : [Blink Relay CI] Weekly Coverage Report — {data['total_pct']}% · {args.branch}")
+        print(f"  To      : {args.to}")
+        print(f"  Lines   : {data['covered_lines']}/{data['total_lines']} covered ({data['missed_lines']} missed)")
+        print(f"  Branch% : {data['branch_pct']}%")
+        print(f"\n  Modules ({len(data['packages'])} total):")
+        for pkg in data["packages"]:
+            bar = "█" * int(pkg["pct"] / 5)
+            print(f"    {pkg['name']:<40} {bar:<20} {pkg['pct']}%")
+        print(f"{'='*60}\n")
+        print("HTML preview written to coverage_report_preview.html")
+        with open("coverage_report_preview.html", "w") as f:
+            f.write(html)
+    else:
+        send_email(args, html, data["total_pct"])
 
 
 if __name__ == "__main__":

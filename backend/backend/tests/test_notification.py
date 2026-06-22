@@ -13,25 +13,14 @@ def svc():
 
 @pytest.mark.asyncio
 async def test_send_email_success(svc: NotificationService):
-    with (
-        patch.object(svc, "_get_graph_token", AsyncMock(return_value="fake-token")),
-        patch("httpx.AsyncClient") as mock_cls,
-    ):
-        mock_resp = MagicMock()
-        mock_resp.is_success = True
-        mock_http = AsyncMock()
-        mock_http.__aenter__ = AsyncMock(return_value=mock_http)
-        mock_http.__aexit__ = AsyncMock(return_value=False)
-        mock_http.post = AsyncMock(return_value=mock_resp)
-        mock_cls.return_value = mock_http
-
+    with patch.object(svc, "_send_smtp", AsyncMock()) as mock_send:
         await svc.send_email("to@test.com", "Subject", "<p>Body</p>")
-        mock_http.post.assert_called_once()
+        mock_send.assert_called_once_with("to@test.com", "Subject", "<p>Body</p>", cc=None)
 
 
 @pytest.mark.asyncio
 async def test_send_email_swallows_errors(svc: NotificationService):
-    with patch.object(svc, "_get_graph_token", AsyncMock(side_effect=Exception("Network error"))):
+    with patch.object(svc, "_send_smtp", AsyncMock(side_effect=Exception("Network error"))):
         # Should not raise
         await svc.send_email("to@test.com", "Subject", "<p>Body</p>")
 
@@ -80,7 +69,7 @@ async def test_notify_status_change(svc: NotificationService):
         await svc.notify_status_change("user@test.com", "My Request", "BLR-2026-0001", "InReview")
         mock_send.assert_called_once()
         subject = mock_send.call_args[0][1]
-        assert "InReview" in subject
+        assert "Status Updated" in subject
 
 
 @pytest.mark.asyncio

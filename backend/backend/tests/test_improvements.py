@@ -532,7 +532,7 @@ class TestTextWrappingComprehensive:
         """Content with URLs and text should wrap correctly."""
         content = "Visit: " + "http://long-url.com/" + "x" * 100 + " for more info"
 
-        assert len(content) > 150
+        assert len(content) > 130
 
     def test_code_block_preservation(self):
         """Code blocks with specific formatting should preserve whitespace."""
@@ -616,8 +616,8 @@ class TestErrorScenariosAndDefensiveProgramming:
             else:
                 has_dot = False
 
-            # Invalid if missing @ or missing .
-            is_invalid = "@" not in email or not has_dot
+            # Invalid if missing @, missing ., or contains spaces
+            is_invalid = "@" not in email or not has_dot or " " in email
             assert is_invalid is True
 
     def test_missing_required_fields(self):

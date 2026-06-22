@@ -76,12 +76,12 @@ async def task_db_session() -> AsyncGenerator[AsyncSession, None]:
     'attached to a different loop' / 'unknown protocol state' errors in eager mode).
     """
     _settings = get_settings()
-    _task_engine = create_async_engine(
-        _settings.DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=1,
-        max_overflow=0,
-    )
+    _is_sqlite = _settings.DATABASE_URL.startswith("sqlite")
+    _engine_kwargs: dict = {"pool_pre_ping": True}
+    if not _is_sqlite:
+        _engine_kwargs["pool_size"] = 1
+        _engine_kwargs["max_overflow"] = 0
+    _task_engine = create_async_engine(_settings.DATABASE_URL, **_engine_kwargs)
     _task_session = async_sessionmaker(
         bind=_task_engine,
         class_=AsyncSession,

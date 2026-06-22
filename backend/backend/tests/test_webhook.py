@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.request import Pod, Request, RequestStatus, RequestType
+from app.models.request import Pod, Priority, Request, RequestStatus, RequestType
 
 
 def _sign(body: bytes, secret: str) -> str:
@@ -21,7 +21,7 @@ async def _make_request_with_jira(db: AsyncSession) -> Request:
         title="Jira webhook test",
         request_type=RequestType.FEATURE,
         pod=Pod.CHARGER,
-        severity=Severity.HIGH,
+        priority=Priority.HIGH,
         status=RequestStatus.APPROVED,
         business_problem="Testing Jira sync",
         affected_area="Charger firmware",

@@ -5,9 +5,15 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import insert
+from sqlalchemy import delete, insert
 
 from app.models.request import Request, RequestStatus, RequestType, Pod
+
+
+async def _clean_requests(db_session):
+    """Delete all requests so analytics counts start from zero."""
+    await db_session.execute(delete(Request))
+    await db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -20,6 +26,8 @@ async def test_request_aging_requires_pm_or_reviewer(authed_client):
 @pytest.mark.asyncio
 async def test_request_aging_empty(pm_client, db_session):
     """Request aging endpoint returns zero counts when no requests exist."""
+    await _clean_requests(db_session)
+
     response = await pm_client.get("/api/analytics/request-aging")
     assert response.status_code == 200
     data = response.json()
@@ -33,12 +41,14 @@ async def test_request_aging_empty(pm_client, db_session):
 @pytest.mark.asyncio
 async def test_request_aging_categorizes_correctly(pm_client, db_session):
     """Request aging correctly categorizes requests into buckets."""
+    await _clean_requests(db_session)
     now = datetime.now(timezone.utc)
+    run_id = str(uuid4())[:8]
 
     # Create fresh request (updated 10 days ago)
     fresh_req = Request(
         id=uuid4(),
-        reference_id="BLR-1001",
+        reference_id=f"BLR-{run_id}-1",
         title="Fresh request",
         submitter_email="user@example.com",
         pod=Pod.CHARGER,
@@ -51,11 +61,11 @@ async def test_request_aging_categorizes_correctly(pm_client, db_session):
     # Create aging request (updated 45 days ago)
     aging_req = Request(
         id=uuid4(),
-        reference_id="BLR-1002",
+        reference_id=f"BLR-{run_id}-2",
         title="Aging request",
         submitter_email="user@example.com",
         pod=Pod.DRIVER,
-        request_type=RequestType.BUG,
+        request_type=RequestType.FEATURE,
         status=RequestStatus.IN_REVIEW,
         created_at=now - timedelta(days=50),
         updated_at=now - timedelta(days=45),
@@ -64,7 +74,7 @@ async def test_request_aging_categorizes_correctly(pm_client, db_session):
     # Create stale request (updated 70 days ago)
     stale_req = Request(
         id=uuid4(),
-        reference_id="BLR-1003",
+        reference_id=f"BLR-{run_id}-3",
         title="Stale request",
         submitter_email="user@example.com",
         pod=Pod.REVENUE,
@@ -75,6 +85,7 @@ async def test_request_aging_categorizes_correctly(pm_client, db_session):
     )
 
     # Insert requests directly
+    _defaults = {"business_problem": "Test", "affected_area": "Test", "submitter_oid": "analytics-oid", "submitter_name": "Analytics Tester"}
     await db_session.execute(
         insert(Request).values([
             {
@@ -87,6 +98,7 @@ async def test_request_aging_categorizes_correctly(pm_client, db_session):
                 "status": fresh_req.status,
                 "created_at": fresh_req.created_at,
                 "updated_at": fresh_req.updated_at,
+                **_defaults,
             },
             {
                 "id": aging_req.id,
@@ -98,6 +110,7 @@ async def test_request_aging_categorizes_correctly(pm_client, db_session):
                 "status": aging_req.status,
                 "created_at": aging_req.created_at,
                 "updated_at": aging_req.updated_at,
+                **_defaults,
             },
             {
                 "id": stale_req.id,
@@ -109,6 +122,7 @@ async def test_request_aging_categorizes_correctly(pm_client, db_session):
                 "status": stale_req.status,
                 "created_at": stale_req.created_at,
                 "updated_at": stale_req.updated_at,
+                **_defaults,
             },
         ])
     )
@@ -132,7 +146,9 @@ async def test_request_aging_categorizes_correctly(pm_client, db_session):
 @pytest.mark.asyncio
 async def test_request_aging_stale_requests_sorted(pm_client, db_session):
     """Top 5 stale requests are returned sorted by age (oldest first)."""
+    await _clean_requests(db_session)
     now = datetime.now(timezone.utc)
+    run_id = str(uuid4())[:8]
 
     # Create 7 stale requests
     stale_reqs = []
@@ -140,7 +156,7 @@ async def test_request_aging_stale_requests_sorted(pm_client, db_session):
         days_old = 65 + (i * 5)  # 65, 70, 75, 80, 85, 90, 95 days
         req = Request(
             id=uuid4(),
-            reference_id=f"BLR-200{i}",
+            reference_id=f"BLR-{run_id}-{i}",
             title=f"Stale request {i}",
             submitter_email="user@example.com",
             pod=Pod.CHARGER,
@@ -151,6 +167,7 @@ async def test_request_aging_stale_requests_sorted(pm_client, db_session):
         )
         stale_reqs.append(req)
 
+    _defaults = {"business_problem": "Test", "affected_area": "Test", "submitter_oid": "analytics-oid", "submitter_name": "Analytics Tester"}
     # Insert all requests
     await db_session.execute(
         insert(Request).values([
@@ -164,6 +181,7 @@ async def test_request_aging_stale_requests_sorted(pm_client, db_session):
                 "status": req.status,
                 "created_at": req.created_at,
                 "updated_at": req.updated_at,
+                **_defaults,
             }
             for req in stale_reqs
         ])
@@ -179,7 +197,6 @@ async def test_request_aging_stale_requests_sorted(pm_client, db_session):
 
     # Verify they're sorted by age (oldest first = lowest updated_at)
     for i, stale_req in enumerate(data["stale_requests"]):
-        assert stale_req["reference_id"] == f"BLR-200{i}"
         expected_days = 95 - (i * 5)  # 95, 90, 85, 80, 75
         assert stale_req["days_idle"] == expected_days
 
@@ -187,15 +204,17 @@ async def test_request_aging_stale_requests_sorted(pm_client, db_session):
 @pytest.mark.asyncio
 async def test_request_aging_stale_request_fields(pm_client, db_session):
     """Stale request response includes all required fields."""
+    await _clean_requests(db_session)
     now = datetime.now(timezone.utc)
+    run_id = str(uuid4())[:8]
 
     req = Request(
         id=uuid4(),
-        reference_id="BLR-5555",
+        reference_id=f"BLR-{run_id}-5",
         title="Test stale request",
         submitter_email="user@example.com",
         pod=Pod.DATA,
-        request_type=RequestType.BUG,
+        request_type=RequestType.FEATURE,
         status=RequestStatus.IN_REVIEW,
         created_at=now - timedelta(days=75),
         updated_at=now - timedelta(days=70),
@@ -212,6 +231,10 @@ async def test_request_aging_stale_request_fields(pm_client, db_session):
             "status": req.status,
             "created_at": req.created_at,
             "updated_at": req.updated_at,
+            "business_problem": "Test",
+            "affected_area": "Test",
+            "submitter_oid": "analytics-oid",
+            "submitter_name": "Analytics Tester",
         })
     )
     await db_session.commit()

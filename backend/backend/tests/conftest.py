@@ -194,6 +194,10 @@ def mock_celery_tasks():
         patch("app.workers.tasks.task_create_jsm_ticket.delay", MagicMock()),
         patch("app.workers.tasks.task_jsm_add_comment.delay", MagicMock()),
         patch("app.workers.tasks.task_close_jsm_ticket.delay", MagicMock()),
+        patch("app.workers.tasks.task_notify_pm_clarification_response.delay", MagicMock()),
+        patch("app.workers.tasks.task_jira_add_comment.delay", MagicMock()),
+        patch("app.workers.email_tasks.task_send_claim_notification.delay", MagicMock()),
+        patch("app.workers.email_tasks.task_send_unclaim_notification.delay", MagicMock()),
     ):
         yield
 

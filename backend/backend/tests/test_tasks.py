@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.models.request import (
-    Pod, Request, RequestStatus, RequestType, )
+    Pod, Priority, Request, RequestStatus, RequestType, )
 
 
 def _make_mock_request(status=RequestStatus.APPROVED, pod=Pod.DRIVER):
@@ -15,7 +15,7 @@ def _make_mock_request(status=RequestStatus.APPROVED, pod=Pod.DRIVER):
     req.title = "Test Request"
     req.request_type = RequestType.FEATURE
     req.pod = pod
-    req.severity = Severity.MEDIUM
+    req.priority = Priority.MEDIUM
     req.status = status
     req.business_problem = "Test business problem"
     req.affected_area = "Driver app"
@@ -53,7 +53,7 @@ def test_route_request_to_pod_already_known():
 
     req = _make_mock_request(pod=Pod.DRIVER)
 
-    with patch("app.core.database.db_session", _make_db_ctx(req)):
+    with patch("app.core.database.task_db_session", _make_db_ctx(req)):
         result = route_request_to_pod(str(req.id))
 
     assert result["auto_routed"] is False
@@ -70,7 +70,7 @@ def test_route_request_to_pod_unknown_routed():
     mock_result = RoutingResult(pod=Pod.DRIVER, confidence=0.80, matched_keywords=["driver", "app", "ios"])
 
     with (
-        patch("app.core.database.db_session", _make_db_ctx(req)),
+        patch("app.core.database.task_db_session", _make_db_ctx(req)),
         patch("app.services.pod_routing_service.PodRoutingService.route", return_value=mock_result),
     ):
         result = route_request_to_pod(str(req.id))
@@ -89,7 +89,7 @@ def test_route_request_to_pod_not_found():
     async def mock_session():
         yield mock_db
 
-    with patch("app.core.database.db_session", mock_session):
+    with patch("app.core.database.task_db_session", mock_session):
         result = route_request_to_pod(str(uuid.uuid4()))
 
     assert result == {}
@@ -102,7 +102,7 @@ def test_task_create_jira_ticket_success():
     ticket = {"key": "DRV-42", "url": "https://jira.example.com/browse/DRV-42", "id": "10042"}
 
     with (
-        patch("app.core.database.db_session", _make_db_ctx(req)),
+        patch("app.core.database.task_db_session", _make_db_ctx(req)),
         patch("app.services.jira_service.JiraService.create_ticket", AsyncMock(return_value=ticket)),
         patch("app.services.pod_routing_service.PodRoutingService.get_jira_project", return_value="DRV"),
     ):
@@ -122,7 +122,7 @@ def test_task_create_jira_ticket_not_found():
     async def mock_session():
         yield mock_db
 
-    with patch("app.core.database.db_session", mock_session):
+    with patch("app.core.database.task_db_session", mock_session):
         result = task_create_jira_ticket(str(uuid.uuid4()))
 
     assert result == {}
@@ -134,7 +134,7 @@ def test_task_send_status_notification_submitted():
     req = _make_mock_request(status=RequestStatus.SUBMITTED)
 
     with (
-        patch("app.core.database.db_session", _make_db_ctx(req)),
+        patch("app.core.database.task_db_session", _make_db_ctx(req)),
         patch("app.services.notification_service.NotificationService.notify_submitted", AsyncMock()),
         patch("app.services.notification_service.NotificationService.send_teams_notification", AsyncMock()),
         patch("app.services.pod_routing_service.PodRoutingService.get_teams_webhook", return_value=""),
@@ -149,10 +149,11 @@ def test_task_send_status_notification_approved():
     req.jira_ticket_url = "https://jira.example.com/browse/DRV-1"
 
     with (
-        patch("app.core.database.db_session", _make_db_ctx(req)),
+        patch("app.core.database.task_db_session", _make_db_ctx(req)),
         patch("app.services.notification_service.NotificationService.notify_approved", AsyncMock()),
         patch("app.services.notification_service.NotificationService.send_teams_notification", AsyncMock()),
         patch("app.services.pod_routing_service.PodRoutingService.get_teams_webhook", return_value=""),
+        patch("app.services.email_group_service.get_pm_group_emails", AsyncMock(return_value=(None, []))),
     ):
         task_send_status_notification(str(req.id))
 
@@ -165,10 +166,11 @@ def test_task_send_status_notification_rejected():
     req.rejection_comment = "Not in Q3"
 
     with (
-        patch("app.core.database.db_session", _make_db_ctx(req)),
+        patch("app.core.database.task_db_session", _make_db_ctx(req)),
         patch("app.services.notification_service.NotificationService.notify_rejected", AsyncMock()),
         patch("app.services.notification_service.NotificationService.send_teams_notification", AsyncMock()),
         patch("app.services.pod_routing_service.PodRoutingService.get_teams_webhook", return_value=""),
+        patch("app.services.email_group_service.get_pm_group_emails", AsyncMock(return_value=(None, []))),
     ):
         task_send_status_notification(str(req.id))
 
@@ -179,10 +181,11 @@ def test_task_send_status_notification_in_review():
     req = _make_mock_request(status=RequestStatus.IN_REVIEW)
 
     with (
-        patch("app.core.database.db_session", _make_db_ctx(req)),
+        patch("app.core.database.task_db_session", _make_db_ctx(req)),
         patch("app.services.notification_service.NotificationService.notify_status_change", AsyncMock()),
         patch("app.services.notification_service.NotificationService.send_teams_notification", AsyncMock()),
         patch("app.services.pod_routing_service.PodRoutingService.get_teams_webhook", return_value=""),
+        patch("app.services.email_group_service.get_pm_group_emails", AsyncMock(return_value=(None, []))),
     ):
         task_send_status_notification(str(req.id))
 
@@ -197,7 +200,7 @@ def test_task_send_status_notification_not_found():
     async def mock_session():
         yield mock_db
 
-    with patch("app.core.database.db_session", mock_session):
+    with patch("app.core.database.task_db_session", mock_session):
         task_send_status_notification(str(uuid.uuid4()))
 
 
@@ -219,7 +222,7 @@ def test_sync_jira_status_updates():
         yield mock_db
 
     with (
-        patch("app.core.database.db_session", mock_session),
+        patch("app.core.database.task_db_session", mock_session),
         patch("app.services.jira_service.JiraService.get_ticket", AsyncMock(return_value=jira_data)),
     ):
         result = sync_jira_status(str(req.id))
@@ -234,7 +237,7 @@ def test_sync_jira_status_no_ticket():
     req = _make_mock_request(status=RequestStatus.SUBMITTED)
     req.jira_ticket_key = None
 
-    with patch("app.core.database.db_session", _make_db_ctx(req)):
+    with patch("app.core.database.task_db_session", _make_db_ctx(req)):
         result = sync_jira_status(str(req.id))
 
     assert result["synced"] is False

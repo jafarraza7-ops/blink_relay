@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.request import (
     Pod,
+    Priority,
     Request,
     RequestStatus,
     RequestType,
@@ -44,7 +45,7 @@ async def _seed_request(
         title="EV session export",
         request_type=RequestType.FEATURE,
         pod=Pod.DRIVER,
-        severity=Severity.MEDIUM,
+        priority=Priority.MEDIUM,
         status=status,
         business_problem="Drivers want CSV exports",
         affected_area="Driver app",
@@ -75,9 +76,12 @@ async def test_submitting_a_request_fires_jsm_ticket_creation(
     sample_request_payload,
     jsm_task_spies,
 ):
+    import asyncio
     resp = await authed_client.post("/api/requests", json=sample_request_payload)
     assert resp.status_code == 201
     request_id = resp.json()["id"]
+    # Let asyncio.create_task from the endpoint run
+    await asyncio.sleep(0)
 
     # JSM ticket creation task was queued exactly once with the new request id
     jsm_task_spies["create"].assert_called_once_with(request_id)
@@ -126,13 +130,13 @@ async def test_posting_a_message_fires_jsm_comment_task(
 
 @pytest.mark.asyncio
 async def test_internal_message_posts_private_jsm_comment(
-    authed_client: AsyncClient,
+    pm_client: AsyncClient,
     db_session: AsyncSession,
     jsm_task_spies,
 ):
     req = await _seed_request(db_session, jsm_ticket_key="BLR-MOCK01")
 
-    resp = await authed_client.post(
+    resp = await pm_client.post(
         f"/api/requests/{req.id}/messages",
         json={"body": "Internal note for reviewers", "is_internal": True},
     )
@@ -185,7 +189,7 @@ async def test_approval_creates_jira_ticket_and_logs_to_jsm(
     jsm_task_spies["create_jira"].assert_called_once()
     jsm_task_spies["comment"].assert_called_once()
     args = jsm_task_spies["comment"].call_args[0]
-    assert "Approved" in args[1]
+    assert "approved" in args[1].lower()
 
 
 # ── Rejection auto-closes the JSM ticket ──────────────────────────────────────
@@ -321,10 +325,12 @@ async def test_full_request_lifecycle_via_api(
     Asserts that the JSM activity log fires at every meaningful step, and the
     JSM ticket auto-closes once the dev ticket is reported as Done.
     """
+    import asyncio
     # 1. Submit
     submit_resp = await authed_client.post("/api/requests", json=sample_request_payload)
     assert submit_resp.status_code == 201
     request_id = submit_resp.json()["id"]
+    await asyncio.sleep(0)  # let asyncio.create_task from endpoint run
     jsm_task_spies["create"].assert_called_once_with(request_id)
 
     # Patch the request in DB so subsequent calls find it (the test client uses
